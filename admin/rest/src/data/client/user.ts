@@ -1,127 +1,142 @@
 import {
   AuthResponse,
   LoginInput,
-  RegisterInput,
   User,
   ChangePasswordInput,
   ForgetPasswordInput,
   VerifyForgetPasswordTokenInput,
   ResetPasswordInput,
-  MakeAdminInput,
-  BlockUserInput,
-  WalletPointsInput,
   UpdateUser,
-  QueryOptionsType,
   UserPaginator,
   UserQueryOptions,
-  VendorQueryOptionsType,
-  KeyInput,
-  LicensedDomainPaginator,
-  LicenseAdditionalData,
 } from '@/types';
 import { API_ENDPOINTS } from './api-endpoints';
 import { HttpClient } from './http-client';
+import type { CallerPageParams } from '@/utils/pagination';
 
 export const userClient = {
-  me: () => {
+  // ── Session ────────────────────────────────────────────────────────────────
+
+  me: (): Promise<User> => {
     return HttpClient.get<User>(API_ENDPOINTS.ME);
   },
-  login: (variables: LoginInput) => {
+
+  login: (variables: LoginInput): Promise<AuthResponse> => {
     return HttpClient.post<AuthResponse>(API_ENDPOINTS.TOKEN, variables);
   },
-  logout: () => {
-    return HttpClient.post<any>(API_ENDPOINTS.LOGOUT, {});
-  },
-  register: (variables: RegisterInput) => {
-    return HttpClient.post<AuthResponse>(API_ENDPOINTS.REGISTER, variables);
-  },
-  update: ({ id, input }: { id: string; input: UpdateUser }) => {
-    return HttpClient.put<User>(`${API_ENDPOINTS.USERS}/${id}`, input);
-  },
-  changePassword: (variables: ChangePasswordInput) => {
-    return HttpClient.post<any>(API_ENDPOINTS.CHANGE_PASSWORD, variables);
-  },
-  forgetPassword: (variables: ForgetPasswordInput) => {
-    return HttpClient.post<any>(API_ENDPOINTS.FORGET_PASSWORD, variables);
-  },
-  verifyForgetPasswordToken: (variables: VerifyForgetPasswordTokenInput) => {
-    return HttpClient.post<any>(
-      API_ENDPOINTS.VERIFY_FORGET_PASSWORD_TOKEN,
-      variables
+
+  /**
+   * Admin logout is client-side only — Kolshi JWTs are stateless; the only
+   * required action is evicting the AUTH_CRED cookie and clearing the
+   * React-Query cache (done in the hook).
+   */
+  logout: (): Promise<void> => Promise.resolve(),
+
+  // ── Password recovery ──────────────────────────────────────────────────────
+
+  forgetPassword: (variables: ForgetPasswordInput): Promise<{ success: boolean }> => {
+    return HttpClient.post<{ success: boolean }>(
+      API_ENDPOINTS.FORGET_PASSWORD,
+      variables,
     );
   },
-  resetPassword: (variables: ResetPasswordInput) => {
-    return HttpClient.post<any>(API_ENDPOINTS.RESET_PASSWORD, variables);
-  },
-  makeAdmin: (variables: MakeAdminInput) => {
-    return HttpClient.post<any>(API_ENDPOINTS.MAKE_ADMIN, variables);
-  },
-  block: (variables: BlockUserInput) => {
-    return HttpClient.post<any>(API_ENDPOINTS.BLOCK_USER, variables);
-  },
-  unblock: (variables: BlockUserInput) => {
-    return HttpClient.post<any>(API_ENDPOINTS.UNBLOCK_USER, variables);
-  },
-  addWalletPoints: (variables: WalletPointsInput) => {
-    return HttpClient.post<any>(API_ENDPOINTS.ADD_WALLET_POINTS, variables);
-  },
-  addLicenseKey: (variables: KeyInput) => {
-    return HttpClient.post<any>(API_ENDPOINTS.ADD_LICENSE_KEY_VERIFY, variables);
+
+  /** Kolshi verify-reset-token only accepts { token }; no email in body. */
+  verifyForgetPasswordToken: (
+    variables: VerifyForgetPasswordTokenInput,
+  ): Promise<{ success: boolean }> => {
+    return HttpClient.post<{ success: boolean }>(
+      API_ENDPOINTS.VERIFY_FORGET_PASSWORD_TOKEN,
+      variables,
+    );
   },
 
-  fetchUsers: ({ name, ...params }: Partial<UserQueryOptions>) => {
-    return HttpClient.get<UserPaginator>(API_ENDPOINTS.USERS, {
-      searchJoin: 'and',
-      with: 'wallet',
-      ...params,
-      search: HttpClient.formatSearchParams({ name }),
-    });
+  /** Kolshi reset-password accepts { token, newPassword }. */
+  resetPassword: (variables: ResetPasswordInput): Promise<{ success: boolean }> => {
+    return HttpClient.post<{ success: boolean }>(
+      API_ENDPOINTS.RESET_PASSWORD,
+      variables,
+    );
   },
-  fetchAdmins: ({ ...params }: Partial<UserQueryOptions>) => {
-    return HttpClient.get<UserPaginator>(API_ENDPOINTS.ADMIN_LIST, {
-      searchJoin: 'and',
-      with: 'wallet;permissions;profile',
-      ...params,
-    });
+
+  resendVerificationEmail: (): Promise<void> => {
+    return HttpClient.post<void>(API_ENDPOINTS.SEND_VERIFICATION_EMAIL, {});
   },
-  fetchUser: ({ id }: { id: string }) => {
+
+  // ── Profile ────────────────────────────────────────────────────────────────
+
+  update: ({ id, input }: { id: string; input: UpdateUser }): Promise<User> => {
+    return HttpClient.put<User>(`${API_ENDPOINTS.USERS}/${id}`, input);
+  },
+
+  changePassword: (variables: ChangePasswordInput): Promise<void> => {
+    return HttpClient.put<void>(API_ENDPOINTS.CHANGE_PASSWORD, variables);
+  },
+
+  // ── User management (used by A3) ──────────────────────────────────────────
+
+  fetchUser: ({ id }: { id: string }): Promise<User> => {
     return HttpClient.get<User>(`${API_ENDPOINTS.USERS}/${id}`);
   },
-  resendVerificationEmail: () => {
-    return HttpClient.post<any>(API_ENDPOINTS.SEND_VERIFICATION_EMAIL, {});
+
+  fetchUsers: (params: Partial<UserQueryOptions>): Promise<UserPaginator> => {
+    return HttpClient.getPaginated<User>(API_ENDPOINTS.USERS, params as CallerPageParams);
   },
-  updateEmail: ({ email }: { email: string }) => {
-    return HttpClient.post<any>(API_ENDPOINTS.UPDATE_EMAIL, { email });
-  },
-  fetchVendors: ({ is_active, ...params }: Partial<UserQueryOptions>) => {
-    return HttpClient.get<UserPaginator>(API_ENDPOINTS.VENDORS_LIST, {
-      searchJoin: 'and',
-      with: 'wallet;permissions;profile',
-      is_active,
+
+  /** Super-admin list: filter by role=super_admin server-side. */
+  fetchAdmins: (params: Partial<UserQueryOptions>): Promise<UserPaginator> => {
+    return HttpClient.getPaginated<User>(API_ENDPOINTS.USERS, {
       ...params,
-    });
+      role: 'super_admin',
+    } as CallerPageParams);
   },
-  fetchCustomers: ({ ...params }: Partial<UserQueryOptions>) => {
-    return HttpClient.get<UserPaginator>(API_ENDPOINTS.CUSTOMERS, {
-      searchJoin: 'and',
-      with: 'wallet',
+
+  /** Store-owner list: filter by role=store_owner server-side. */
+  fetchVendors: (params: Partial<UserQueryOptions>): Promise<UserPaginator> => {
+    return HttpClient.getPaginated<User>(API_ENDPOINTS.USERS, {
       ...params,
-    });
+      role: 'store_owner',
+    } as CallerPageParams);
   },
-  getMyStaffs: ({ is_active, shop_id, name, ...params }: Partial<UserQueryOptions & { shop_id: string }>) => {
-    return HttpClient.get<UserPaginator>(API_ENDPOINTS.MY_STAFFS, {
-      searchJoin: 'and',
-      shop_id,
+
+  /** Customer list: filter by role=customer server-side. */
+  fetchCustomers: (params: Partial<UserQueryOptions>): Promise<UserPaginator> => {
+    return HttpClient.getPaginated<User>(API_ENDPOINTS.USERS, {
       ...params,
-      search: HttpClient.formatSearchParams({ name, is_active })
-    });
+      role: 'customer',
+    } as CallerPageParams);
   },
-  getAllStaffs: ({ is_active, name, ...params }: Partial<UserQueryOptions>) => {
-    return HttpClient.get<UserPaginator>(API_ENDPOINTS.ALL_STAFFS, {
-      searchJoin: 'and',
-      ...params,
-      search: HttpClient.formatSearchParams({ name, is_active }),
-    });
+
+  // ── Admin actions (used by A3) ─────────────────────────────────────────────
+
+  /** POST /users/{id}/block */
+  block: ({ id }: { id: string }): Promise<void> => {
+    return HttpClient.post<void>(`${API_ENDPOINTS.USERS}/${id}/block`, {});
   },
-  
+
+  /** POST /users/{id}/unblock */
+  unblock: ({ id }: { id: string }): Promise<void> => {
+    return HttpClient.post<void>(`${API_ENDPOINTS.USERS}/${id}/unblock`, {});
+  },
+
+  /** POST /users/{id}/role { role } — replaces make-admin + revoke-admin. */
+  changeRole: ({ id, role }: { id: string; role: string }): Promise<void> => {
+    return HttpClient.post<void>(`${API_ENDPOINTS.USERS}/${id}/role`, { role });
+  },
+
+  // ── Staff (used by A3) ─────────────────────────────────────────────────────
+
+  getMyStaffs: (params: Partial<UserQueryOptions & { shopId: string }>): Promise<UserPaginator> => {
+    const { shopId, ...rest } = params;
+    return HttpClient.getPaginated<User>(
+      shopId
+        ? `shops/${shopId}/staff`
+        : API_ENDPOINTS.MY_STAFFS,
+      rest as CallerPageParams,
+    );
+  },
+
+  getAllStaffs: (params: Partial<UserQueryOptions>): Promise<UserPaginator> => {
+    return HttpClient.getPaginated<User>(API_ENDPOINTS.ALL_STAFFS, params as CallerPageParams);
+  },
 };

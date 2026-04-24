@@ -1,13 +1,18 @@
 import Layout from '@/components/layouts/app';
 import ProfileUpdateFrom from '@/components/auth/profile-update-form';
-import ChangePasswordForm from '@/components/auth/change-password-from';
 import ErrorMessage from '@/components/ui/error-message';
 import Loader from '@/components/ui/loader/loader';
 import { useMeQuery } from '@/data/user';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-import EmailUpdateForm from '@/components/auth/email-update-form';
 
+/**
+ * Profile settings page.
+ *
+ * Kolshi does not expose a self-service email-update endpoint (users must
+ * contact support), so EmailUpdateForm is removed.  Change-password is also
+ * hidden (B.8) — password resets go through the forgot-password flow.
+ */
 export default function ProfilePage() {
   const { t } = useTranslation();
   const { data, isLoading: loading, error } = useMeQuery();
@@ -20,13 +25,11 @@ export default function ProfilePage() {
           {t('form:form-title-profile-settings')}
         </h1>
       </div>
-      <EmailUpdateForm me={data} />
-
       <ProfileUpdateFrom me={data} />
-      <ChangePasswordForm />
     </>
   );
 }
+
 ProfilePage.Layout = Layout;
 
 export const getStaticProps = async ({ locale }: any) => ({

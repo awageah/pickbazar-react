@@ -201,6 +201,10 @@ export interface AuthResponse {
   token: string;
   permissions: string[];
   role: string;
+  /** Lifetime in seconds; drives cookie expiry (Kolshi default: 604 800 = 7 days). */
+  expires_in?: number;
+  /** Whether the account's email has been verified. */
+  email_verified?: boolean;
 }
 
 export interface Type {
@@ -1532,15 +1536,15 @@ export interface ForgetPasswordInput {
   email: string;
 }
 
+/** Kolshi POST /auth/verify-reset-token — only the token is required. */
 export interface VerifyForgetPasswordTokenInput {
   token: string;
-  email: string;
 }
 
+/** Kolshi POST /auth/reset-password */
 export interface ResetPasswordInput {
   token: string;
-  email: string;
-  password: string;
+  newPassword: string;
 }
 
 export declare interface MakeAdminInput {

@@ -11,7 +11,10 @@ interface Props {
 }
 
 const schema = yup.object().shape({
-  password: yup.string().required('form:error-password-required'),
+  password: yup
+    .string()
+    .min(8, 'form:error-password-too-short')
+    .required('form:error-password-required'),
 });
 
 const EnterNewPasswordView = ({ onSubmit, loading }: Props) => {

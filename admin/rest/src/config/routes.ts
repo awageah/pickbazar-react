@@ -2,7 +2,8 @@ export const Routes = {
   dashboard: '/',
   login: '/login',
   logout: '/logout',
-  register: '/register',
+  /** @deprecated A.10 — admin registration is disabled in Kolshi; redirect to login. */
+  register: '/login',
   forgotPassword: '/forgot-password',
   resetPassword: '/reset-password',
   adminMyShops: '/my-shops',
@@ -21,7 +22,8 @@ export const Routes = {
   profileUpdate: '/profile-update',
   checkout: '/orders/checkout',
   verifyEmail: '/verify-email',
-  verifyLicense: '/verify-license',
+  /** @deprecated A.13 — verify-license page deleted; redirect to dashboard. */
+  verifyLicense: '/',
   user: {
     ...routesFactory('/users'),
   },

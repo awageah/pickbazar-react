@@ -16,52 +16,74 @@ import {
   hasAccess,
   setAuthCredentials,
 } from '@/utils/auth-utils';
+import { getErrorCode } from '@/utils/error-handler';
 
 const loginFormSchema = yup.object().shape({
   email: yup
     .string()
     .email('form:error-email-format')
     .required('form:error-email-required'),
-  password: yup.string().required('form:error-password-required'),
+  password: yup
+    .string()
+    .min(8, 'form:error-password-too-short')
+    .required('form:error-password-required'),
 });
-
-const defaultValues = {
-  email: 'admin@demo.com',
-  password: 'demodemo',
-};
 
 const LoginForm = () => {
   const { t } = useTranslation();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const { mutate: login, isLoading, error } = useLogin();
+  const { mutate: login, isLoading } = useLogin();
 
   function onSubmit({ email, password }: LoginInput) {
     login(
-      {
-        email,
-        password,
-      },
+      { email, password },
       {
         onSuccess: (data) => {
           if (data?.token) {
             if (hasAccess(allowedRoles, data?.permissions)) {
-              setAuthCredentials(data?.token, data?.permissions, data?.role);
+              setAuthCredentials(
+                data.token,
+                data.permissions,
+                data.role,
+                data.expires_in,
+              );
+              // Redirect unverified users to the verify-email page;
+              // the dashboard's getServerSideProps will also guard this.
+              if (data.email_verified === false) {
+                Router.push(Routes.verifyEmail);
+                return;
+              }
               Router.push(Routes.dashboard);
-              return;
+            } else {
+              // Authenticated but not an admin role (e.g. customer).
+              setErrorMessage('form:error-enough-permission');
             }
-            setErrorMessage('form:error-enough-permission');
           } else {
             setErrorMessage('form:error-credential-wrong');
           }
         },
-        onError: () => {},
-      }
+        onError: (err) => {
+          const code = getErrorCode(err);
+          if (code === 'EMAIL_NOT_VERIFIED') {
+            Router.push(Routes.verifyEmail);
+            return;
+          }
+          if (code === 'ACCOUNT_BLOCKED' || code === 'ACCOUNT_SUSPENDED') {
+            setErrorMessage('form:error-account-blocked');
+            return;
+          }
+          setErrorMessage('form:error-credential-wrong');
+        },
+      },
     );
   }
 
   return (
     <>
-      <Form<LoginInput> validationSchema={loginFormSchema} onSubmit={onSubmit} useFormProps={{ defaultValues }}>
+      <Form<LoginInput>
+        validationSchema={loginFormSchema}
+        onSubmit={onSubmit}
+      >
         {({ register, formState: { errors } }) => (
           <>
             <Input
@@ -84,26 +106,10 @@ const LoginForm = () => {
             <Button className="w-full" loading={isLoading} disabled={isLoading}>
               {t('form:button-label-login')}
             </Button>
-
-            <div className="relative mt-8 mb-6 flex flex-col items-center justify-center text-sm text-heading sm:mt-11 sm:mb-8">
-              <hr className="w-full" />
-              <span className="absolute -top-2.5 bg-light px-2 -ms-4 start-2/4">
-                {t('common:text-or')}
-              </span>
-            </div>
-
-            <div className="text-center text-sm text-body sm:text-base">
-              {t('form:text-no-account')}{' '}
-              <Link
-                href={Routes.register}
-                className="font-semibold text-accent underline transition-colors duration-200 ms-1 hover:text-accent-hover hover:no-underline focus:text-accent-700 focus:no-underline focus:outline-none"
-              >
-                {t('form:link-register-shop-owner')}
-              </Link>
-            </div>
           </>
         )}
       </Form>
+
       {errorMessage ? (
         <Alert
           message={t(errorMessage)}
@@ -118,15 +124,3 @@ const LoginForm = () => {
 };
 
 export default LoginForm;
-
-{
-  /* {errorMsg ? (
-          <Alert
-            message={t(errorMsg)}
-            variant="error"
-            closeable={true}
-            className="mt-5"
-            onClose={() => setErrorMsg('')}
-          />
-        ) : null} */
-}
