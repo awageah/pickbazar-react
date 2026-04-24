@@ -111,33 +111,15 @@ const UserList = ({
     },
     {
       title: t('table:table-item-permissions'),
-      dataIndex: 'permissions',
-      key: 'permissions',
+      dataIndex: 'role',
+      key: 'role',
       align: alignLeft,
-      width: 300,
-      render: (permissions: any) => {
-        return (
-          <div className="flex flex-wrap gap-1.5 whitespace-nowrap">
-            {permissions?.map(
-              ({ name, index }: { name: string; index: number }) => (
-                <span
-                  key={index}
-                  className="rounded bg-gray-200/50 px-2.5 py-1"
-                >
-                  {name}
-                </span>
-              )
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      title: t('table:table-item-available_wallet_points'),
-      dataIndex: ['wallet', 'available_points'],
-      key: 'available_wallet_points',
-      align: 'center',
-      width: 150,
+      width: 200,
+      render: (role: string) => (
+        <span className="rounded bg-gray-200/50 px-2.5 py-1 whitespace-nowrap">
+          {role ?? '—'}
+        </span>
+      ),
     },
     {
       title: (
@@ -182,7 +164,6 @@ const UserList = ({
                 id={id}
                 userStatus={true}
                 isUserActive={is_active}
-                showAddWalletPoints={true}
                 showMakeAdminButton={true}
               />
             )}

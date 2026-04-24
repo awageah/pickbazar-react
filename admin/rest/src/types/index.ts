@@ -1564,10 +1564,9 @@ export interface KeyInput {
 }
 
 export declare type AddStaffInput = {
-  email: string;
-  password: string;
-  name: string;
-  shop_id: number;
+  /** Existing user's ID. Kolshi POST /shops/{shopId}/staff accepts { userId }. */
+  userId: string | number;
+  shopId: string | number;
 };
 
 export declare type ApproveShopInput = {

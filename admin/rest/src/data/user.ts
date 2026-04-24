@@ -125,6 +125,27 @@ export const useChangePasswordMutation = () => {
   });
 };
 
+/** PUT /me/profile — updates the authenticated user's own bio/contact/avatar. */
+export const useUpdateProfileMutation = () => {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  return useMutation(
+    (input: { bio?: string; contact?: string; avatar?: string }) =>
+      userClient.updateMe(input),
+    {
+      onSuccess: () => {
+        toast.success(t('common:successfully-updated'));
+        queryClient.invalidateQueries(API_ENDPOINTS.ME);
+      },
+      onError: (error: any) => {
+        toast.error(
+          error?.response?.data?.message ?? t('common:error-something-wrong'),
+        );
+      },
+    },
+  );
+};
+
 // ── User management (A3) ──────────────────────────────────────────────────────
 
 export const useUserQuery = ({ id }: { id: string }) => {

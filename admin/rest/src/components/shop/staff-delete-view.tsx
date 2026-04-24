@@ -4,32 +4,29 @@ import {
   useModalState,
 } from '@/components/ui/modal/modal.context';
 import { useRemoveStaffMutation } from '@/data/staff';
-import { getErrorMessage } from '@/utils/form-error';
+import { useShopQuery } from '@/data/shop';
+import { useRouter } from 'next/router';
 
 const StaffDeleteView = () => {
-  const { mutate: removeStaffByID, isLoading: loading } =
-    useRemoveStaffMutation();
+  const { mutate: removeStaff, isLoading: loading } = useRemoveStaffMutation();
 
-  const { data } = useModalState();
+  const { data: staffId } = useModalState();
   const { closeModal } = useModalAction();
+  const { query } = useRouter();
+
+  const { data: shopData } = useShopQuery({ slug: query.shop as string });
 
   async function handleDelete() {
-    try {
-      removeStaffByID({
-        id: data,
-      });
-      closeModal();
-    } catch (error) {
-      closeModal();
-      getErrorMessage(error);
-    }
+    if (!shopData?.id) return;
+    removeStaff({ shopId: shopData.id, staffId });
+    closeModal();
   }
 
   return (
     <ConfirmationCard
       onCancel={closeModal}
       onDelete={handleDelete}
-      deleteBtnLoading={loading}
+      deleteBtnLoading={loading || !shopData?.id}
     />
   );
 };

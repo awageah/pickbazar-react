@@ -45,10 +45,8 @@ export default function StaffsPage() {
     error,
   } = useStaffsQuery(
     {
-      shop_id: shopId,
+      shopId,
       page,
-      orderBy,
-      sortedBy,
     },
     {
       enabled: Boolean(shopId),

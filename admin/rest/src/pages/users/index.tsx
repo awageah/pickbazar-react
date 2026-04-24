@@ -2,14 +2,12 @@ import Card from '@/components/common/card';
 import Layout from '@/components/layouts/admin';
 import Search from '@/components/common/search';
 import UserList from '@/components/user/user-list';
-import LinkButton from '@/components/ui/link-button';
 import { useState } from 'react';
 import ErrorMessage from '@/components/ui/error-message';
 import Loader from '@/components/ui/loader/loader';
 import { useUsersQuery } from '@/data/user';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-import { Routes } from '@/config/routes';
 import { SortOrder } from '@/types';
 import { adminOnly } from '@/utils/auth-utils';
 import PageHeading from '@/components/common/page-heading';
@@ -54,13 +52,6 @@ export default function AllUsersPage() {
             onSearch={handleSearch}
             placeholderText={t('form:input-placeholder-search-name')}
           />
-
-          <LinkButton
-            href={`${Routes.user.create}`}
-            className="h-12 w-full md:w-auto md:ms-6"
-          >
-            <span>+ {t('form:button-label-add-user')}</span>
-          </LinkButton>
         </div>
       </Card>
 

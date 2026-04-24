@@ -69,6 +69,11 @@ export const userClient = {
     return HttpClient.put<User>(`${API_ENDPOINTS.USERS}/${id}`, input);
   },
 
+  /** PUT /me/profile — edits the currently authenticated user's own profile. */
+  updateMe: (input: { bio?: string; contact?: string; avatar?: string }): Promise<User> => {
+    return HttpClient.put<User>(API_ENDPOINTS.PROFILE_UPDATE, input);
+  },
+
   changePassword: (variables: ChangePasswordInput): Promise<void> => {
     return HttpClient.put<void>(API_ENDPOINTS.CHANGE_PASSWORD, variables);
   },

@@ -1,19 +1,46 @@
-import { StaffQueryOptions, StaffPaginator, AddStaffInput } from '@/types';
+import { AddStaffInput, User } from '@/types';
 import { API_ENDPOINTS } from './api-endpoints';
 import { HttpClient } from './http-client';
+import { KolshiPageResponse } from '@/utils/pagination';
+
+export interface StaffListParams {
+  shopId: string | number;
+  page?: number;
+  size?: number;
+}
 
 export const staffClient = {
-  paginated: ({ ...params }: Partial<StaffQueryOptions>) => {
-    return HttpClient.get<StaffPaginator>(API_ENDPOINTS.STAFFS, {
-      searchJoin: 'and',
-      ...params,
-      search: HttpClient.formatSearchParams({}),
-    });
-  },
-  addStaff: (variables: AddStaffInput) => {
-    return HttpClient.post<any>(API_ENDPOINTS.ADD_STAFF, variables);
-  },
-  removeStaff: ({ id }: { id: string }) => {
-    return HttpClient.delete<any>(`${API_ENDPOINTS.REMOVE_STAFF}/${id}`);
-  },
+  /**
+   * GET /shops/{shopId}/staff
+   * Returns paginated list of staff members for a shop.
+   */
+  paginated: ({ shopId, page, size }: StaffListParams) =>
+    HttpClient.getPaginated<User>(
+      `${API_ENDPOINTS.SHOPS}/${shopId}/staff`,
+      { page, size },
+    ),
+
+  /**
+   * POST /shops/{shopId}/staff
+   * Adds an existing user as a staff member of the shop.
+   */
+  addStaff: ({ shopId, userId }: AddStaffInput) =>
+    HttpClient.post<User>(
+      `${API_ENDPOINTS.SHOPS}/${shopId}/staff`,
+      { userId },
+    ),
+
+  /**
+   * DELETE /shops/{shopId}/staff/{staffId}
+   */
+  removeStaff: ({
+    shopId,
+    staffId,
+  }: {
+    shopId: string | number;
+    staffId: string | number;
+  }) =>
+    HttpClient.delete<void>(
+      `${API_ENDPOINTS.SHOPS}/${shopId}/staff/${staffId}`,
+    ),
 };
