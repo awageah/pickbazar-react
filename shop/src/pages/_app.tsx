@@ -22,10 +22,20 @@ const ToastContainer = dynamic(
 );
 import Maintenance from '@/components/maintenance/layout';
 import { NotificationProvider } from '@/context/notify-content';
+import { useLogoutOnUnauthorized } from '@/lib/hooks/use-logout-on-401';
 
 type AppPropsWithLayout = AppProps & {
   Component: NextPageWithLayout;
 };
+
+/**
+ * Thin wrapper that mounts the logout-on-401 listener inside the
+ * `QueryClientProvider` (required because `useQueryClient` reads context).
+ */
+function AuthLifecycle({ children }: { children: React.ReactNode }) {
+  useLogoutOnUnauthorized();
+  return <>{children}</>;
+}
 
 function CustomApp({
   Component,
@@ -45,6 +55,7 @@ function CustomApp({
       <div dir={dir}>
         <SessionProvider session={session}>
           <QueryProvider pageProps={pageProps}>
+            <AuthLifecycle>
             <SearchProvider>
               <ModalProvider>
                 <CartProvider>
@@ -69,6 +80,7 @@ function CustomApp({
                 </CartProvider>
               </ModalProvider>
             </SearchProvider>
+            </AuthLifecycle>
           </QueryProvider>
         </SessionProvider>
       </div>

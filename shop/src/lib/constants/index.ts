@@ -13,8 +13,9 @@ export const CHECKOUT = 'pickbazar-checkout';
 export const SHOPS_LIMIT = 20;
 export const RTL_LANGUAGES: ReadonlyArray<string> = ['ar', 'he'];
 export const PRODUCT_INITIAL_FETCH_LIMIT = 30;
+// Kolshi is Arabic-first; fallback was `'en'` in the Pickbazar template.
 export const DEFAULT_LANGUAGE =
-  process.env.NEXT_PUBLIC_DEFAULT_LANGUAGE ?? 'en';
+  process.env.NEXT_PUBLIC_DEFAULT_LANGUAGE ?? 'ar';
 export const EMAIL_VERIFIED = 'emailVerified';
 export const RESPONSIVE_WIDTH = 1024 as number;
 

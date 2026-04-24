@@ -1,70 +1,177 @@
+/**
+ * Kolshi API endpoint catalogue.
+ *
+ * - Keys are STABLE across phases — consumers (data-layer modules, hooks,
+ *   components) keep importing the same names while their values point at
+ *   the Kolshi backend instead of the legacy Pickbazar routes.
+ * - Keys whose feature is slated for **Delete** in the decision log still
+ *   resolve to their legacy paths until the consumer itself is removed in
+ *   S6 / A9 — this keeps the codebase compiling through S1–S5.
+ * - Paths are relative to `NEXT_PUBLIC_REST_API_ENDPOINT` (which already
+ *   ends in `/api/v1`). Do NOT add `/api/v1` prefixes here.
+ *
+ * Source of truth: `kolshi-backend/docs/handoff/KOLSHI_FRONTEND_HANDOFF.md`.
+ */
 export const API_ENDPOINTS = {
+  // ── Catalog ─────────────────────────────────────────────────
   PRODUCTS: '/products',
-  PRODUCTS_POPULAR: '/popular-products',
-  PRODUCTS_REVIEWS: '/reviews',
-  PRODUCTS_REVIEWS_ABUSE_REPORT: '/abusive_reports',
-  PRODUCTS_QUESTIONS: '/questions',
-  FEEDBACK: '/feedbacks',
+  PRODUCTS_POPULAR: '/products/popular',
+  PRODUCTS_BEST_SELLING: '/products/best-selling',
+  PRODUCTS_NEW_ARRIVALS: '/products/new-arrivals',
+  PRODUCTS_RELATED: '/products', // suffix: `/${id}/related`
+  PRODUCTS_FBT: '/products', // suffix: `/${id}/frequently-bought-together`
+  PRODUCTS_RECENTLY_VIEWED: '/products/recently-viewed',
+  PRODUCTS_IMAGES: '/products', // suffix: `/${id}/images`
+  PRODUCTS_VARIATIONS: '/products', // suffix: `/${id}/variations`
+  PRODUCTS_IMPORT: '/products/import',
+  PRODUCTS_EXPORT: '/products/export',
+  PRODUCTS_IMPORT_TEMPLATE: '/products/import-template',
+
   CATEGORIES: '/categories',
-  TYPES: '/types',
-  TAGS: '/tags',
+  CATEGORIES_TREE: '/categories/tree',
+  CATEGORIES_ROOTS: '/categories/roots',
+
+  // ── Reviews ─────────────────────────────────────────────────
+  PRODUCTS_REVIEWS: '/reviews',
+  PRODUCT_REVIEWS_BY_PRODUCT: '/products', // suffix: `/${id}/reviews`
+  PRODUCT_REVIEWS_SUMMARY: '/products', // suffix: `/${id}/reviews/summary`
+  REVIEW_RESPONSE: '/reviews', // suffix: `/${id}/response`
+  REVIEW_VOTE: '/reviews', // suffix: `/${id}/vote`
+
+  // ── Shops ───────────────────────────────────────────────────
   SHOPS: '/shops',
-  AUTHORS: '/authors',
-  AUTHORS_TOP: '/top-authors',
-  MANUFACTURERS: '/manufacturers',
-  MANUFACTURERS_TOP: '/top-manufacturers',
-  COUPONS: '/coupons',
-  COUPONS_VERIFY: '/coupons/verify',
-  ORDERS: '/orders',
-  ORDERS_REFUNDS: '/refunds',
-  ORDERS_PAYMENT: '/orders/payment',
-  ORDERS_CHECKOUT_VERIFY: '/orders/checkout/verify',
-  ORDERS_DOWNLOADS: '/downloads',
-  GENERATE_DOWNLOADABLE_PRODUCT_LINK: '/downloads/digital_file',
-  USERS: '/users',
-  USERS_ADDRESS: '/address',
+  SHOPS_PENDING: '/shops/pending',
+  SHOPS_MY: '/shops/my-shops',
+  SHOPS_STAFF: '/shops', // suffix: `/${shopId}/staff`
+  SHOPS_SETTINGS: '/shops', // suffix: `/${id}/settings`
+  SHOPS_BALANCE: '/shops', // suffix: `/${id}/balance`
+  SHOPS_TRANSACTIONS: '/shops', // suffix: `/${id}/transactions`
+
+  // ── Auth ────────────────────────────────────────────────────
+  USERS_REGISTER: '/auth/register',
+  USERS_LOGIN: '/auth/login',
+  USERS_FORGOT_PASSWORD: '/auth/forgot-password',
+  USERS_VERIFY_FORGOT_PASSWORD_TOKEN: '/auth/validate-reset-token',
+  USERS_RESET_PASSWORD: '/auth/reset-password',
+  AUTH_VERIFY_EMAIL: '/auth/verify-email',
+  SEND_VERIFICATION_EMAIL: '/auth/resend-verification',
+  // Kolshi has no server-side logout — the client just drops the cookie.
+  USERS_LOGOUT: '/auth/logout',
+
+  // ── Profile / account (current user) ────────────────────────
   USERS_ME: '/me',
-  USERS_LOGIN: '/token',
-  USERS_REGISTER: '/register',
-  USERS_FORGOT_PASSWORD: '/forget-password',
-  USERS_VERIFY_FORGOT_PASSWORD_TOKEN: '/verify-forget-password-token',
-  USERS_RESET_PASSWORD: '/reset-password',
-  USERS_CHANGE_PASSWORD: '/change-password',
-  USERS_LOGOUT: '/logout',
-  USERS_SUBSCRIBE_TO_NEWSLETTER: '/subscribe-to-newsletter',
-  USERS_CONTACT_US: '/contact-us',
-  USERS_WISHLIST: '/my-wishlists',
+  ME_PROFILE: '/me/profile',
+  ME_PASSWORD: '/me/password',
+  ME_ADDRESSES: '/me/addresses', // suffix optional: `/${id}`, `/${id}/default`
+
+  // ── Users (admin) ───────────────────────────────────────────
+  USERS: '/users',
+  USERS_ADDRESS: '/me/addresses', // legacy alias — replaced by ME_ADDRESSES (S2)
+  USERS_CHANGE_PASSWORD: '/me/password',
+  USERS_UPDATE_EMAIL: '/me/profile', // Kolshi has no dedicated email-change endpoint — legacy key kept for compilation only.
+
+  // ── Wishlist ────────────────────────────────────────────────
   WISHLIST: '/wishlists',
-  USERS_WISHLIST_TOGGLE: '/wishlists/toggle',
-  SOCIAL_LOGIN: '/social-login-token',
-  SEND_OTP_CODE: '/send-otp-code',
-  VERIFY_OTP_CODE: '/verify-otp-code',
-  OTP_LOGIN: '/otp-login',
-  UPDATE_CONTACT: '/update-contact',
+  USERS_WISHLIST: '/wishlists',
+  USERS_WISHLIST_TOGGLE: '/wishlists/toggle', // legacy — S5 rewires to add/remove endpoints
+  WISHLIST_CHECK: '/wishlists/check',
+  WISHLIST_COUNT: '/wishlists/count',
+
+  // ── Cart ────────────────────────────────────────────────────
+  CART: '/cart',
+  CART_ITEMS: '/cart/items',
+
+  // ── Orders / tracking / payments ────────────────────────────
+  ORDERS: '/orders',
+  ORDERS_HISTORY: '/orders', // suffix: `/${id}/history`
+  ORDERS_NOTES: '/orders', // suffix: `/${orderId}/notes`
+  ORDERS_STATUS: '/orders', // suffix: `/${id}/status`
+  ORDERS_PROCESSING: '/orders', // suffix: `/${id}/processing`
+  ORDERS_AT_LOCAL_FACILITY: '/orders', // suffix: `/${id}/at-local-facility`
+  ORDERS_OUT_FOR_DELIVERY: '/orders', // suffix: `/${id}/out-for-delivery`
+  ORDERS_COMPLETED: '/orders', // suffix: `/${id}/completed`
+  ORDERS_CANCEL: '/orders', // suffix: `/${id}/cancel`
+  TRACKING: '/tracking',
+  PAYMENTS_ORDER: '/payments/order',
+  PAYMENTS_REFUND: '/payments', // suffix: `/${paymentId}/refund`
+
+  // ── Coupons ─────────────────────────────────────────────────
+  COUPONS: '/coupons',
+  COUPONS_VALIDATE: '/coupons/validate',
+  COUPONS_BEST_MATCH: '/coupons/best-match',
+  COUPONS_USAGES: '/coupons', // suffix: `/${id}/usages`
+  COUPONS_VERIFY: '/coupons/validate', // legacy alias; S4 migrates to COUPONS_VALIDATE
+
+  // ── Withdrawals ─────────────────────────────────────────────
+  WITHDRAWALS: '/withdrawals',
+  WITHDRAWALS_PENDING: '/admin/withdrawals/pending',
+
+  // ── Notifications / settings / system ───────────────────────
+  NOTIFY_LOGS: '/notifications',
+  READ_NOTIFY_LOG: '/notifications', // suffix: `/${id}/read`
+  READ_ALL_NOTIFY_LOG: '/notifications/read-all',
+  NOTIFICATIONS_COUNT: '/notifications/count',
+  NOTIFICATIONS_FAILED: '/notifications/failed',
+  NOTIFICATIONS_DEAD_LETTER: '/notifications/dead-letter',
+  NOTIFICATIONS_STATS: '/notifications/stats',
+  NOTIFICATIONS_RETRY: '/notifications', // suffix: `/${id}/retry`
+
   SETTINGS: '/settings',
+  SETTINGS_CACHE_REFRESH: '/settings/cache-refresh',
+  SETTINGS_STATS: '/settings/stats',
+  SYSTEM_STATUS: '/system/status',
+
+  ANALYTICS_SHOPS: '/analytics/shops', // suffix: `/${id}`
+
+  // ── Uploads ─────────────────────────────────────────────────
+  // Kolshi backend stores URLs only — it does NOT accept multipart uploads.
+  // Client-side uploads now go through `useCloudinaryUpload`; this key
+  // exists only so legacy callers keep compiling until they are rewired.
   UPLOADS: '/attachments',
-  MY_QUESTIONS: '/my-questions',
-  MY_REPORTS: '/my-reports',
-  CARDS: '/cards',
+
+  // ───────────────────────────────────────────────────────────
+  // LEGACY — features scheduled for Delete in S6 / A9 per the decision log.
+  // The keys stay here so consumers still compile; the consumers themselves
+  // are removed in the cleanup phases.
+  // ───────────────────────────────────────────────────────────
+  PRODUCTS_REVIEWS_ABUSE_REPORT: '/abusive_reports', // Delete — I.4
+  PRODUCTS_QUESTIONS: '/questions', // Delete — I.2
+  FEEDBACK: '/feedbacks', // Delete (Not supported by Kolshi)
+  TYPES: '/types', // Delete — E.3
+  TAGS: '/tags', // Delete — E.4
+  AUTHORS: '/authors', // Delete — C.1
+  AUTHORS_TOP: '/top-authors',
+  MANUFACTURERS: '/manufacturers', // Delete — C.1
+  MANUFACTURERS_TOP: '/top-manufacturers',
+  ORDERS_REFUNDS: '/refunds', // Delete (customer refund UI) — F.7
+  ORDERS_PAYMENT: '/orders/payment', // Stripe/PayPal/etc. — H.2 Delete
+  ORDERS_CHECKOUT_VERIFY: '/orders/checkout/verify', // Delete — F.6
+  ORDERS_DOWNLOADS: '/downloads', // Delete — D.8
+  GENERATE_DOWNLOADABLE_PRODUCT_LINK: '/downloads/digital_file', // Delete — D.9
+  USERS_SUBSCRIBE_TO_NEWSLETTER: '/subscribe-to-newsletter', // Delete — N.3
+  USERS_CONTACT_US: '/contact-us', // Delete — L.5
+  SOCIAL_LOGIN: '/social-login-token', // Coming Soon — A.3
+  SEND_OTP_CODE: '/send-otp-code', // Coming Soon — A.4
+  VERIFY_OTP_CODE: '/verify-otp-code', // Coming Soon — A.4
+  OTP_LOGIN: '/otp-login', // Coming Soon — A.4
+  UPDATE_CONTACT: '/update-contact', // Delete
+  MY_QUESTIONS: '/my-questions', // Delete — I.2
+  MY_REPORTS: '/my-reports', // Delete — I.4
+  CARDS: '/cards', // Delete — H.3
   SET_DEFAULT_CARD: '/set-default-card',
   SAVE_PAYMENT_METHOD: '/save-payment-method',
   PAYMENT_INTENT: '/payment-intent',
-  BEST_SELLING_PRODUCTS: '/best-selling-products',
-  SEND_VERIFICATION_EMAIL: '/email/verification-notification',
-  USERS_UPDATE_EMAIL: '/update-email',
-  STORE_NOTICES: 'store-notices',
-  FAQS: '/faqs',
-  NEAR_SHOPS: '/near-by-shop',
-  REFUNDS_REASONS: 'refund-reasons',
-  TERMS_AND_CONDITIONS: 'terms-and-conditions',
-  FLASH_SALE: 'flash-sale',
-  PRODUCT_FLASH_SALE_INFO: 'product-flash-sale-info',
-  REFUND_POLICIES: 'refund-policies',
-  PRODUCTS_BY_FLASH_SALE: 'products-by-flash-sale',
-  NOTIFY_LOGS: 'notify-logs',
+  BEST_SELLING_PRODUCTS: '/products/best-selling', // legacy alias → PRODUCTS_BEST_SELLING
+  STORE_NOTICES: 'store-notices', // Delete — M.1
   STORE_NOTICES_IS_READ: 'store-notices/read',
-  READ_ALL_NOTIFY_LOG: 'notify-log-read-all',
-  READ_NOTIFY_LOG: 'notify-log-seen',
-  BECAME_SELLER: 'became-seller',
-  SHOP_MAINTENANCE_EVENT: 'shop-maintenance-event',
+  FAQS: '/faqs', // Delete — L.2
+  NEAR_SHOPS: '/near-by-shop', // Delete (no backend support)
+  REFUNDS_REASONS: 'refund-reasons', // Delete — F.7
+  TERMS_AND_CONDITIONS: 'terms-and-conditions', // Delete — L.3
+  FLASH_SALE: 'flash-sale', // Delete — D.14
+  PRODUCT_FLASH_SALE_INFO: 'product-flash-sale-info',
+  REFUND_POLICIES: 'refund-policies', // Delete — F.7
+  PRODUCTS_BY_FLASH_SALE: 'products-by-flash-sale',
+  BECAME_SELLER: 'became-seller', // Delete — L.4
+  SHOP_MAINTENANCE_EVENT: 'shop-maintenance-event', // Delete
 };
