@@ -8,23 +8,17 @@ import ShopList from '@/components/shop/shop-list';
 import { useState } from 'react';
 import Search from '@/components/common/search';
 import { adminOnly } from '@/utils/auth-utils';
-import { useInActiveShopsQuery } from '@/data/shop';
-import { SortOrder } from '@/types';
+import { usePendingShopsQuery } from '@/data/shop';
 import PageHeading from '@/components/common/page-heading';
 
 export default function NewShopPage() {
   const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
-  const [orderBy, setOrder] = useState('created_at');
-  const [sortedBy, setColumn] = useState<SortOrder>(SortOrder.Desc);
-  const { shops, paginatorInfo, loading, error } = useInActiveShopsQuery({
-    name: searchTerm,
-    limit: 10,
+  const { shops, paginatorInfo, loading, error } = usePendingShopsQuery({
+    search: searchTerm,
     page,
-    orderBy,
-    sortedBy,
-    is_active: false,
+    size: 10,
   });
 
   if (loading) return <Loader text={t('common:text-loading')} />;

@@ -1,14 +1,72 @@
 import { Config } from '@/config';
 import { Routes } from '@/config/routes';
 import { API_ENDPOINTS } from '@/data/client/api-endpoints';
-import { Shop, ShopPaginator, ShopQueryOptions } from '@/types';
-import { adminOnly, getAuthCredentials, hasAccess } from '@/utils/auth-utils';
-import { mapPaginatorData } from '@/utils/data-mappers';
+import { shopClient, ShopListParams } from '@/data/client/shop';
+import { Shop, ShopInput } from '@/types';
+import { getAuthCredentials, adminOnly, hasAccess } from '@/utils/auth-utils';
+import { toPaginatorInfo } from '@/utils/pagination';
 import { useTranslation } from 'next-i18next';
 import Router, { useRouter } from 'next/router';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
 import { toast } from 'react-toastify';
-import { shopClient } from './client/shop';
+
+// ── Queries ────────────────────────────────────────────────────────────────────
+
+export const useShopQuery = ({ slug }: { slug: string }, options?: any) =>
+  useQuery<Shop, Error>(
+    [API_ENDPOINTS.SHOPS, { slug }],
+    () => shopClient.get({ slug }),
+    { enabled: Boolean(slug), ...options },
+  );
+
+export const useShopsQuery = (params: ShopListParams = {}) => {
+  const { data, error, isLoading } = useQuery(
+    [API_ENDPOINTS.SHOPS, params],
+    () => shopClient.paginated(params),
+    { keepPreviousData: true },
+  );
+  return {
+    shops: data?.data ?? [],
+    paginatorInfo: toPaginatorInfo(data ?? null),
+    error,
+    loading: isLoading,
+  };
+};
+
+/** Pending-approval queue — replaces the old `useInActiveShopsQuery`. */
+export const usePendingShopsQuery = (params: ShopListParams = {}) => {
+  const { data, error, isLoading } = useQuery(
+    [API_ENDPOINTS.NEW_OR_INACTIVE_SHOPS, params],
+    () => shopClient.pendingShops(params),
+    { keepPreviousData: true },
+  );
+  return {
+    shops: data?.data ?? [],
+    paginatorInfo: toPaginatorInfo(data ?? null),
+    error,
+    loading: isLoading,
+  };
+};
+
+/** @deprecated Use usePendingShopsQuery */
+export const useInActiveShopsQuery = usePendingShopsQuery;
+
+/** Store-owner's own shops — `GET /shops/my-shops`. */
+export const useMyShopsQuery = (params: ShopListParams = {}) => {
+  const { data, error, isLoading } = useQuery(
+    [API_ENDPOINTS.MY_SHOPS, params],
+    () => shopClient.myShops(params),
+    { keepPreviousData: true },
+  );
+  return {
+    shops: data?.data ?? [],
+    paginatorInfo: toPaginatorInfo(data ?? null),
+    error,
+    loading: isLoading,
+  };
+};
+
+// ── Mutations ──────────────────────────────────────────────────────────────────
 
 export const useApproveShopMutation = () => {
   const { t } = useTranslation();
@@ -17,9 +75,12 @@ export const useApproveShopMutation = () => {
     onSuccess: () => {
       toast.success(t('common:successfully-updated'));
     },
-    // Always refetch after error or success:
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message ?? t('common:error-something-wrong'));
+    },
     onSettled: () => {
       queryClient.invalidateQueries(API_ENDPOINTS.SHOPS);
+      queryClient.invalidateQueries(API_ENDPOINTS.NEW_OR_INACTIVE_SHOPS);
     },
   });
 };
@@ -31,9 +92,12 @@ export const useDisApproveShopMutation = () => {
     onSuccess: () => {
       toast.success(t('common:successfully-updated'));
     },
-    // Always refetch after error or success:
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message ?? t('common:error-something-wrong'));
+    },
     onSettled: () => {
       queryClient.invalidateQueries(API_ENDPOINTS.SHOPS);
+      queryClient.invalidateQueries(API_ENDPOINTS.NEW_OR_INACTIVE_SHOPS);
     },
   });
 };
@@ -41,16 +105,17 @@ export const useDisApproveShopMutation = () => {
 export const useCreateShopMutation = () => {
   const queryClient = useQueryClient();
   const router = useRouter();
-
   return useMutation(shopClient.create, {
-    onSuccess: () => {
+    onSuccess: (data) => {
       const { permissions } = getAuthCredentials();
       if (hasAccess(adminOnly, permissions)) {
         return router.push(Routes.adminMyShops);
       }
       router.push(Routes.dashboard);
     },
-    // Always refetch after error or success:
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message);
+    },
     onSettled: () => {
       queryClient.invalidateQueries(API_ENDPOINTS.SHOPS);
     },
@@ -68,67 +133,40 @@ export const useUpdateShopMutation = () => {
       });
       toast.success(t('common:successfully-updated'));
     },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message ?? t('common:error-something-wrong'));
+    },
     onSettled: () => {
       queryClient.invalidateQueries(API_ENDPOINTS.SHOPS);
     },
   });
 };
-export const useTransferShopOwnershipMutation = () => {
+
+export const useDeleteShopMutation = () => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  return useMutation(shopClient.transferShopOwnership, {
-    onSuccess: (shop: Shop) => {
-      toast.success(
-        `${t('common:successfully-transferred')}${shop.owner?.name}`,
-      );
+  return useMutation(shopClient.delete, {
+    onSuccess: () => {
+      toast.success(t('common:successfully-deleted'));
     },
-    // Always refetch after error or success:
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.message ?? t('common:error-something-wrong'));
+    },
     onSettled: () => {
       queryClient.invalidateQueries(API_ENDPOINTS.SHOPS);
     },
   });
 };
 
-export const useShopQuery = ({ slug }: { slug: string }, options?: any) => {
-  return useQuery<Shop, Error>(
-    [API_ENDPOINTS.SHOPS, { slug }],
-    () => shopClient.get({ slug }),
-    options,
-  );
-};
-
-export const useShopsQuery = (options: Partial<ShopQueryOptions>) => {
-  const { data, error, isLoading } = useQuery<ShopPaginator, Error>(
-    [API_ENDPOINTS.SHOPS, options],
-    ({ queryKey, pageParam }) =>
-      shopClient.paginated(Object.assign({}, queryKey[1], pageParam)),
-    {
-      keepPreviousData: true,
-    },
-  );
-
-  return {
-    shops: data?.data ?? [],
-    paginatorInfo: mapPaginatorData(data),
-    error,
-    loading: isLoading,
-  };
-};
-
-export const useInActiveShopsQuery = (options: Partial<ShopQueryOptions>) => {
-  const { data, error, isLoading } = useQuery<ShopPaginator, Error>(
-    [API_ENDPOINTS.NEW_OR_INACTIVE_SHOPS, options],
-    ({ queryKey, pageParam }) =>
-      shopClient.newOrInActiveShops(Object.assign({}, queryKey[1], pageParam)),
-    {
-      keepPreviousData: true,
-    },
-  );
-
-  return {
-    shops: data?.data ?? [],
-    paginatorInfo: mapPaginatorData(data),
-    error,
-    loading: isLoading,
-  };
+/**
+ * Ownership transfer is not available in Kolshi. This stub prevents TS errors
+ * in pages that reference it until they are cleaned in A9.
+ * @deprecated A.Delete
+ */
+export const useTransferShopOwnershipMutation = () => {
+  const { t } = useTranslation();
+  return useMutation(() => {
+    toast.error(t('common:error-something-wrong'));
+    return Promise.reject(new Error('Transfer ownership is not supported'));
+  });
 };

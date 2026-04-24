@@ -9,30 +9,17 @@ import { useState } from 'react';
 import Search from '@/components/common/search';
 import { adminOnly } from '@/utils/auth-utils';
 import { useShopsQuery } from '@/data/shop';
-import { SortOrder } from '@/types';
 import PageHeading from '@/components/common/page-heading';
-import { useRouter } from 'next/router';
-import { useSettingsQuery } from '@/data/settings';
-
 export default function AllShopPage() {
   const { t } = useTranslation();
-  const { locale } = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
-  const [orderBy, setOrder] = useState('created_at');
-  const [sortedBy, setColumn] = useState<SortOrder>(SortOrder.Desc);
   const { shops, paginatorInfo, loading, error } = useShopsQuery({
-    name: searchTerm,
-    limit: 10,
+    search: searchTerm,
+    size: 10,
     page,
-    orderBy,
-    sortedBy,
   });
-  const { settings, loading: loadingSettings } = useSettingsQuery({
-    language: locale!,
-  });
-  if (loading || loadingSettings)
-    return <Loader text={t('common:text-loading')} />;
+  if (loading) return <Loader text={t('common:text-loading')} />;
   if (error) return <ErrorMessage message={error.message} />;
 
   function handleSearch({ searchText }: { searchText: string }) {
@@ -60,11 +47,6 @@ export default function AllShopPage() {
         shops={shops}
         paginatorInfo={paginatorInfo}
         onPagination={handlePagination}
-        onOrder={setOrder}
-        onSort={setColumn}
-        isMultiCommissionRate={Boolean(
-          settings?.options?.isMultiCommissionRate,
-        )}
       />
     </>
   );

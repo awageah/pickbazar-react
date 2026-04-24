@@ -1,3 +1,11 @@
+/**
+ * A4 — Shop list table adapted to Kolshi.
+ *
+ * Removed:
+ *   - `isMultiCommissionRate` prop & "Quote" column (no commission rate in Kolshi)
+ *   - `transferShopOwnership` action (deleted in Kolshi)
+ *   - `ownership_history` / `OwnerShipTransferStatus` references
+ */
 import ActionButtons from '@/components/common/action-buttons';
 import Avatar from '@/components/common/avatar';
 import { NoDataFound } from '@/components/icons/no-data-found';
@@ -7,13 +15,7 @@ import Pagination from '@/components/ui/pagination';
 import { AlignType, Table } from '@/components/ui/table';
 import TitleWithSort from '@/components/ui/title-with-sort';
 import { siteSettings } from '@/settings/site.settings';
-import {
-  MappedPaginatorInfo,
-  OwnerShipTransferStatus,
-  Shop,
-  SortOrder,
-} from '@/types';
-import { OWNERSHIP_TRANSFER_STATUS } from '@/utils/constants';
+import { MappedPaginatorInfo, Shop, SortOrder } from '@/types';
 import { useIsRTL } from '@/utils/locals';
 import { useTranslation } from 'next-i18next';
 import Image from 'next/image';
@@ -25,43 +27,29 @@ type IProps = {
   shops: Shop[] | undefined;
   paginatorInfo: MappedPaginatorInfo | null;
   onPagination: (current: number) => void;
-  onSort: (current: any) => void;
-  onOrder: (current: string) => void;
-  isMultiCommissionRate?: boolean;
+  onSort?: (current: any) => void;
+  onOrder?: (current: string) => void;
 };
 
-const ShopList = ({
-  shops,
-  paginatorInfo,
-  onPagination,
-  onSort,
-  onOrder,
-  isMultiCommissionRate,
-}: IProps) => {
+const ShopList = ({ shops, paginatorInfo, onPagination, onSort, onOrder }: IProps) => {
   const { t } = useTranslation();
   const { alignLeft, alignRight } = useIsRTL();
   const { permissions } = getAuthCredentials();
+
   const [sortingObj, setSortingObj] = useState<{
     sort: SortOrder;
     column: string | null;
-  }>({
-    sort: SortOrder.Desc,
-    column: null,
-  });
+  }>({ sort: SortOrder.Desc, column: null });
 
   const onHeaderClick = (column: string | null) => ({
     onClick: () => {
-      onSort((currentSortDirection: SortOrder) =>
-        currentSortDirection === SortOrder.Desc
-          ? SortOrder.Asc
-          : SortOrder.Desc,
-      );
-      onOrder(column!);
-
+      if (onSort) {
+        onSort((d: SortOrder) => (d === SortOrder.Desc ? SortOrder.Asc : SortOrder.Desc));
+      }
+      if (onOrder) onOrder(column!);
       setSortingObj({
-        sort:
-          sortingObj.sort === SortOrder.Desc ? SortOrder.Asc : SortOrder.Desc,
-        column: column,
+        sort: sortingObj.sort === SortOrder.Desc ? SortOrder.Asc : SortOrder.Desc,
+        column,
       });
     },
   });
@@ -79,9 +67,7 @@ const ShopList = ({
       title: (
         <TitleWithSort
           title={t('table:table-item-shop')}
-          ascending={
-            sortingObj.sort === SortOrder.Asc && sortingObj.column === 'name'
-          }
+          ascending={sortingObj.sort === SortOrder.Asc && sortingObj.column === 'name'}
           isActive={sortingObj.column === 'name'}
         />
       ),
@@ -103,22 +89,16 @@ const ShopList = ({
             />
           </div>
           <Link href={`/${slug}`}>
-            <span className="truncate whitespace-nowrap font-medium">
-              {name}
-            </span>
+            <span className="truncate whitespace-nowrap font-medium">{name}</span>
           </Link>
         </div>
       ),
     },
-
     {
       title: (
         <TitleWithSort
           title={t('table:table-item-total-products')}
-          ascending={
-            sortingObj.sort === SortOrder.Asc &&
-            sortingObj.column === 'products_count'
-          }
+          ascending={sortingObj.sort === SortOrder.Asc && sortingObj.column === 'products_count'}
           isActive={sortingObj.column === 'products_count'}
         />
       ),
@@ -129,15 +109,11 @@ const ShopList = ({
       width: 180,
       onHeaderCell: () => onHeaderClick('products_count'),
     },
-
     {
       title: (
         <TitleWithSort
           title={t('table:table-item-total-orders')}
-          ascending={
-            sortingObj.sort === SortOrder.Asc &&
-            sortingObj.column === 'orders_count'
-          }
+          ascending={sortingObj.sort === SortOrder.Asc && sortingObj.column === 'orders_count'}
           isActive={sortingObj.column === 'orders_count'}
         />
       ),
@@ -157,9 +133,7 @@ const ShopList = ({
       render: (owner: any) => (
         <div className="flex items-center">
           <Avatar name={owner?.name} src={owner?.profile?.avatar?.thumbnail} />
-          <span className="whitespace-nowrap font-medium ms-2">
-            {owner?.name}
-          </span>
+          <span className="whitespace-nowrap font-medium ms-2">{owner?.name}</span>
         </div>
       ),
     },
@@ -167,10 +141,7 @@ const ShopList = ({
       title: (
         <TitleWithSort
           title={t('table:table-item-status')}
-          ascending={
-            sortingObj.sort === SortOrder.Asc &&
-            sortingObj.column === 'is_active'
-          }
+          ascending={sortingObj.sort === SortOrder.Asc && sortingObj.column === 'is_active'}
           isActive={sortingObj.column === 'is_active'}
         />
       ),
@@ -183,31 +154,9 @@ const ShopList = ({
       render: (is_active: boolean) => (
         <Badge
           textKey={is_active ? 'common:text-active' : 'common:text-inactive'}
-          color={
-            is_active
-              ? 'bg-accent/10 !text-accent'
-              : 'bg-status-failed/10 text-status-failed'
-          }
+          color={is_active ? 'bg-accent/10 !text-accent' : 'bg-status-failed/10 text-status-failed'}
         />
       ),
-    },
-    {
-      title: t('text-quote-title'),
-      key: 'settings',
-      align: 'center' as AlignType,
-      width: 80,
-      render: (id: string, { settings, is_active }: Shop) => {
-        return Boolean(settings?.askForAQuote?.enable) &&
-          !Boolean(is_active) &&
-          Boolean(isMultiCommissionRate) ? (
-          <Badge
-            textKey={settings?.askForAQuote?.quote}
-            color="bg-accent/10 text-accent"
-          />
-        ) : (
-          ''
-        );
-      },
     },
     {
       title: t('table:table-item-actions'),
@@ -215,47 +164,26 @@ const ShopList = ({
       key: 'actions',
       align: alignRight as AlignType,
       width: 120,
-      render: (
-        id: string,
-        { slug, is_active, owner_id, ownership_history, settings }: Shop,
-      ) => {
-        return (
-          <ActionButtons
-            id={id}
-            approveButton={true}
-            detailsUrl={`/${slug}`}
-            isShopActive={is_active}
-            transferShopOwnership
-            disabled={
-              !Boolean(is_active) ||
-              OWNERSHIP_TRANSFER_STATUS?.includes(
-                ownership_history?.status as OwnerShipTransferStatus,
-              )
-            }
-            data={{
-              ...settings?.askForAQuote,
-              multiCommission: Boolean(isMultiCommissionRate),
-              id,
-              owner_id: owner_id as number,
-            }}
-          />
-        );
-      },
+      render: (id: string, { slug, is_active }: Shop) => (
+        <ActionButtons
+          id={id}
+          approveButton={true}
+          detailsUrl={`/${slug}`}
+          isShopActive={is_active}
+        />
+      ),
     },
   ];
 
-  if (!Boolean(isMultiCommissionRate)) {
-    columns = columns?.filter((column) => column?.key !== 'settings');
-  }
-
   if (!permissions?.includes(SUPER_ADMIN)) {
-    columns = columns?.filter((column) => column?.key !== 'actions');
+    columns = columns.filter((col) => col.key !== 'actions');
   }
 
   return (
     <>
       <div className="mb-6 overflow-hidden rounded shadow">
         <Table
+          // @ts-ignore
           columns={columns}
           emptyText={() => (
             <div className="flex flex-col items-center py-7">
