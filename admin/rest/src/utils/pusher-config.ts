@@ -1,43 +1,28 @@
-// Enable pusher logging - don't include this in production
-import Pusher from 'pusher-js';
-import Cookies from 'js-cookie';
+/**
+ * Pusher no-op stub — A1 (Kolshi does not use Pusher/broadcast).
+ *
+ * The three topbar components that import this file
+ * (store-notice-bar, recent-order-bar, message-bar) are scheduled for
+ * deletion in A9 together with the conversations/store-notices feature set.
+ * Until then, this stub satisfies the import contract without establishing
+ * any real WebSocket connection or loading the `pusher-js` package.
+ *
+ * @see KOLSHI_ADAPTATION_ROADMAP.md A9, M.5
+ */
 
-// Change request data/error
-const AUTH_TOKEN_KEY = process.env.NEXT_PUBLIC_AUTH_TOKEN_KEY ?? 'authToken';
-const cookies = Cookies.get(AUTH_TOKEN_KEY);
-let token = '';
-if (cookies) {
-  token = JSON.parse(cookies)['token'];
-}
+type PusherChannel = {
+  bind: (_event: string, _callback: (...args: unknown[]) => void) => PusherChannel;
+  unbind: (_event?: string) => PusherChannel;
+};
 
-if (process.env.NEXT_PUBLIC_PUSHER_DEV_MOOD === 'true') {
-  Pusher.logToConsole = true;
-}
+const noopChannel: PusherChannel = {
+  bind: () => noopChannel,
+  unbind: () => noopChannel,
+};
 
-// you can include your custom configuration options
-let option = {};
-
-export const PusherConfig = new Pusher(
-  `${process.env.NEXT_PUBLIC_PUSHER_APP_KEY}`,
-  {
-    ...option,
-    cluster: `${process.env.NEXT_PUBLIC_PUSHER_APP_CLUSTER}`,
-    authEndpoint: `${process.env.NEXT_PUBLIC_BROADCAST_AUTH_URL}`,
-    // forceTLS: true,
-    auth: {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Access-Control-Allow-Origin': '*',
-        Accept: 'application/json',
-      },
-    },
-  }
-);
-
-if (process.env.NEXT_PUBLIC_API_BROADCAST_DRIVER !== 'pusher') {
-  PusherConfig.disconnect();
-} else {
-  if (process.env.NEXT_PUBLIC_PUSHER_ENABLED !== 'true') {
-    PusherConfig.disconnect();
-  }
-}
+export const PusherConfig = {
+  subscribe: (_channel: string): PusherChannel => noopChannel,
+  unsubscribe: (_channel: string): void => {},
+  disconnect: (): void => {},
+  connection: { bind: () => {}, state: 'disconnected' },
+};

@@ -1,14 +1,8 @@
 import Cookie from 'js-cookie';
 import SSRCookie from 'cookie';
-import {
-  AUTH_CRED,
-  EMAIL_VERIFIED,
-  PERMISSIONS,
-  STAFF,
-  STORE_OWNER,
-  SUPER_ADMIN,
-  TOKEN,
-} from './constants';
+import { AUTH_CRED, STAFF, STORE_OWNER, SUPER_ADMIN } from './constants';
+
+// ─── Role sets ───────────────────────────────────────────────────────────────
 
 export const allowedRoles = [SUPER_ADMIN, STORE_OWNER, STAFF];
 export const adminAndOwnerOnly = [SUPER_ADMIN, STORE_OWNER];
@@ -17,56 +11,102 @@ export const adminOnly = [SUPER_ADMIN];
 export const ownerOnly = [STORE_OWNER];
 export const ownerAndStaffOnly = [STORE_OWNER, STAFF];
 
-export function setAuthCredentials(token: string, permissions: any, role: any) {
-  Cookie.set(AUTH_CRED, JSON.stringify({ token, permissions, role }));
-}
-export function setEmailVerified(emailVerified: boolean) {
-  Cookie.set(EMAIL_VERIFIED, JSON.stringify({ emailVerified }));
-}
-export function getEmailVerified(): {
-  emailVerified: boolean;
-} {
-  const emailVerified = Cookie.get(EMAIL_VERIFIED);
-  return emailVerified ? JSON.parse(emailVerified) : false;
+// ─── Cookie key ──────────────────────────────────────────────────────────────
+
+const AUTH_TOKEN_KEY =
+  process.env.NEXT_PUBLIC_AUTH_TOKEN_KEY ?? 'AUTH_CRED';
+
+// ─── Cookie write ────────────────────────────────────────────────────────────
+
+/**
+ * Writes the full Kolshi `AuthResponse` into the `AUTH_CRED` cookie.
+ *
+ * `expires_in` is in seconds (Kolshi backend default: 604 800 = 7 days).
+ * When present it drives the cookie's `expires` attribute so the browser
+ * naturally evicts the credential; when absent the cookie is session-lived.
+ *
+ * The cookie payload `{ token, permissions, role }` matches the shape that
+ * the Bearer interceptor (`http-client.ts`) and `getAuthCredentials` read.
+ */
+export function setAuthCredentials(
+  token: string,
+  permissions: string[],
+  role: string,
+  expires_in?: number,
+): void {
+  const options: Cookie.CookieAttributes = { sameSite: 'Lax' };
+  if (expires_in && expires_in > 0) {
+    options.expires = expires_in / 86_400; // js-cookie expects days
+  }
+  Cookie.set(
+    AUTH_TOKEN_KEY,
+    JSON.stringify({ token, permissions, role }),
+    options,
+  );
 }
 
-export function getAuthCredentials(context?: any): {
+// ─── Cookie read ─────────────────────────────────────────────────────────────
+
+export interface AuthCredentials {
   token: string | null;
   permissions: string[] | null;
   role: string | null;
-} {
-  let authCred;
+}
+
+/**
+ * Reads the `AUTH_CRED` cookie.
+ *
+ * Works in two contexts:
+ *   - Client: reads via `js-cookie`.
+ *   - SSR: reads via `cookie` package from the Next.js request `context`.
+ */
+export function getAuthCredentials(context?: any): AuthCredentials {
+  let authCred: string | undefined;
   if (context) {
-    authCred = parseSSRCookie(context)[AUTH_CRED];
+    authCred = parseSSRCookie(context)[AUTH_TOKEN_KEY];
   } else {
-    authCred = Cookie.get(AUTH_CRED);
+    authCred = Cookie.get(AUTH_TOKEN_KEY);
   }
   if (authCred) {
-    return JSON.parse(authCred);
+    try {
+      return JSON.parse(authCred) as AuthCredentials;
+    } catch {
+      // Corrupt cookie — treat as unauthenticated.
+    }
   }
   return { token: null, permissions: null, role: null };
 }
 
-export function parseSSRCookie(context: any) {
-  return SSRCookie.parse(context.req.headers.cookie ?? '');
+export function parseSSRCookie(context: any): Record<string, string> {
+  return SSRCookie.parse(context.req?.headers?.cookie ?? '');
 }
 
+// ─── Access helpers ───────────────────────────────────────────────────────────
+
+/**
+ * Returns true when `_userPermissions` contains at least one of
+ * `_allowedRoles`.
+ */
 export function hasAccess(
   _allowedRoles: string[],
   _userPermissions: string[] | undefined | null,
-) {
-  if (_userPermissions) {
-    return Boolean(
-      _allowedRoles?.find((aRole) => _userPermissions.includes(aRole)),
-    );
-  }
-  return false;
+): boolean {
+  if (!_userPermissions?.length) return false;
+  return _allowedRoles.some((role) => _userPermissions.includes(role));
 }
 
-export function isAuthenticated(_cookies: any) {
+/**
+ * Returns true when both a token and at least one permission are present.
+ * Mirrors the shape `{ token, permissions }` returned by
+ * `getAuthCredentials`.
+ */
+export function isAuthenticated(_cookies: {
+  token: string | null;
+  permissions: string[] | null;
+}): boolean {
   return (
-    !!_cookies[TOKEN] &&
-    Array.isArray(_cookies[PERMISSIONS]) &&
-    !!_cookies[PERMISSIONS].length
+    !!_cookies.token &&
+    Array.isArray(_cookies.permissions) &&
+    _cookies.permissions.length > 0
   );
 }
