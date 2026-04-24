@@ -7,25 +7,18 @@ import CouponLoader from '@/components/ui/loaders/coupon-loader';
 import { useShops } from '@/framework/shop';
 import ErrorMessage from '@/components/ui/error-message';
 import ShopCard from '@/components/ui/cards/shop';
-import { useGetSearchNearShops } from '@/framework/shop';
 export { getStaticProps } from '@/framework/shops-page.ssr';
-import { useRouter } from 'next/router';
 import { SHOPS_PER_PAGE } from '@/framework/client/variables';
 import { getLayoutWithFooter } from '@/components/layouts/layout-with-footer';
 
 const ShopsPage: NextPageWithLayout = () => {
   const { t } = useTranslation('common');
-  const { query } = useRouter();
   const limit = SHOPS_PER_PAGE;
   const { shops, isLoading, isLoadingMore, hasMore, loadMore, error } =
     useShops({
       limit,
       is_active: 1,
     });
-  const { data } = useGetSearchNearShops({
-    lat: query?.lat?.toString() as string,
-    lng: query?.lng?.toString() as string,
-  });
 
   if (error) return <ErrorMessage message={error.message} />;
   if (!isLoading && !shops.length) {

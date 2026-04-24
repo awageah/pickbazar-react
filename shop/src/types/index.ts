@@ -95,44 +95,101 @@ export interface Attachment {
   slug?: string;
 }
 
+/**
+ * Kolshi-native sort keys accepted by `GET /products?sortBy=`.
+ *
+ * Template callers still pass the old `"created_at:desc"` / `"price:asc"`
+ * shapes; `sort-mapper.ts` translates those into one of these values
+ * before the request leaves the axios instance.
+ */
+export type KolshiProductSort =
+  | 'newest'
+  | 'popular'
+  | 'rating'
+  | 'price_asc'
+  | 'price_desc';
+
 export interface ProductQueryOptions extends QueryOptions {
-  shop_id: string;
-  sortedBy: string;
-  orderBy: string;
-  name: string;
-  categories: string;
-  tags: string;
-  type: string;
-  manufacturer: string;
-  author: string;
-  price: string;
-  min_price: string;
-  max_price: string;
-  language: string;
-  searchType: string;
-  searchQuery: string;
-  text: string;
-  visibility: string;
+  // ── Kolshi-native filters ───────────────────────────────────────────
+  shopId?: string | number;
+  categoryId?: string | number;
+  search?: string;
+  isActive?: boolean;
+  minPrice?: number;
+  maxPrice?: number;
+  brand?: string;
+  minRating?: number;
+  inStock?: boolean;
+  sortBy?: KolshiProductSort;
+  language?: string;
+
+  // ── Legacy Pickbazar filters (translated by `format-products-args`) ──
+  shop_id?: string;
+  sortedBy?: string;
+  orderBy?: string;
+  name?: string;
+  categories?: string;
+  tags?: string;
+  type?: string;
+  manufacturer?: string;
+  author?: string;
+  price?: string;
+  min_price?: string;
+  max_price?: string;
+  searchType?: string;
+  searchQuery?: string;
+  text?: string;
+  visibility?: string;
 }
 
 export interface PopularProductQueryOptions extends QueryOptions {
-  language: string;
-  type_slug: string;
-  with: string;
-  range: number;
+  language?: string;
+  type_slug?: string;
+  with?: string;
+  range?: number;
+  shopId?: string | number;
+  categoryId?: string | number;
 }
 
 export interface BestSellingProductQueryOptions extends QueryOptions {
-  language: string;
-  type_slug: string;
-  with: string;
-  range: number;
+  language?: string;
+  type_slug?: string;
+  with?: string;
+  range?: number;
+  shopId?: string | number;
+  categoryId?: string | number;
 }
 
 export interface CategoryQueryOptions extends QueryOptions {
-  language: string;
-  parent: string | null;
-  type: string;
+  language?: string;
+  parent?: string | null;
+  type?: string;
+  rootsOnly?: boolean;
+  parentId?: string | number;
+}
+
+export interface ReviewSummary {
+  average: number;
+  total: number;
+  breakdown: Record<1 | 2 | 3 | 4 | 5, number>;
+}
+
+export interface ProductImage {
+  id: string | number;
+  url: string;
+  position?: number;
+  is_primary?: boolean;
+}
+
+export interface ProductVariation {
+  id: string | number;
+  sku?: string;
+  title?: string;
+  price?: number;
+  sale_price?: number;
+  quantity?: number;
+  is_enabled?: boolean;
+  variation_options?: Record<string, string | number>;
 }
 
 export interface RefundQueryOptions extends QueryOptions {

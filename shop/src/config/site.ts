@@ -58,24 +58,16 @@ export const siteSettings = {
     play_store_link: '/',
     app_store_link: '/',
   },
+  // Kolshi S3 scope: browsing experience only. Out-of-scope entries —
+  // flash-sale (D.9 Delete), authors / manufacturers (D.7-D.8 Delete),
+  // vendor refund policies (F.7 Delete), help / become-seller / per-
+  // site FAQ & terms (L.x Delete) — are pruned here so the header
+  // menu no longer renders their links. The underlying routes still
+  // resolve until S6 deletes the page components.
   headerLinks: [
     { href: Routes.shops, icon: null, label: 'nav-menu-shops' },
     { href: Routes.coupons, icon: null, label: 'nav-menu-offer' },
     { href: Routes.contactUs, label: 'nav-menu-contact' },
-    {
-      href: Routes.becomeSeller,
-      label: 'Become a seller',
-    },
-    { href: Routes.flashSale, label: 'nav-menu-flash-sale' },
-    { href: Routes.manufacturers, label: 'text-manufacturers' },
-    { href: Routes.authors, label: 'text-authors' },
-    { href: Routes.help, label: 'nav-menu-faq' },
-    { href: Routes.terms, label: 'nav-menu-terms' },
-    { href: Routes.customerRefundPolicies, label: 'nav-menu-refund-policy' },
-    {
-      href: Routes.vendorRefundPolicies,
-      label: 'nav-menu-vendor-refund-policy',
-    },
   ],
   footer: {
     // copyright: {
@@ -85,6 +77,9 @@ export const siteSettings = {
     // address: '2429 River Drive, Suite 35 Cottonhall, CA 2296 United Kingdom',
     // email: 'dummy@dummy.com',
     // phone: '+1 256-698-0694',
+    // Footer is reduced to Kolshi-supported surfaces: storefronts,
+    // offers, privacy, and contact. Authors / manufacturers / flash
+    // deals / vendor refund policies are removed (D.7-D.9, F.7 Delete).
     menus: [
       {
         title: 'text-explore',
@@ -94,33 +89,8 @@ export const siteSettings = {
             href: Routes.shops,
           },
           {
-            name: 'Authors',
-            href: Routes.authors,
-          },
-          {
-            name: 'Flash Deals',
-            href: Routes?.flashSale,
-          },
-          {
             name: 'Coupon',
             href: Routes.coupons,
-          },
-        ],
-      },
-      {
-        title: 'text-customer-service',
-        links: [
-          {
-            name: 'text-faq-help',
-            href: Routes.help,
-          },
-          {
-            name: 'Vendor Refund Policies',
-            href: Routes.vendorRefundPolicies,
-          },
-          {
-            name: 'Customer Refund Policies',
-            href: Routes.customerRefundPolicies,
           },
         ],
       },
@@ -128,16 +98,8 @@ export const siteSettings = {
         title: 'text-our-information',
         links: [
           {
-            name: 'Manufacturers',
-            href: Routes?.manufacturers,
-          },
-          {
             name: 'Privacy policies',
             href: Routes.privacy,
-          },
-          {
-            name: 'text-terms-condition',
-            href: Routes.terms,
           },
           {
             name: 'text-contact-us',

@@ -9,7 +9,6 @@ import Seo from '@/components/seo/seo';
 import { useRouter } from 'next/router';
 import { useShop } from '@/framework/shop';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-import VendorContactForm from '@/components/settings/vendor-contact-form';
 import { UserAddress } from '@/types';
 import Link from '@/components/ui/link';
 import { Routes } from '@/config/routes';
@@ -124,12 +123,19 @@ export default function VendorContactPage() {
             </div>
           </div>
 
-          {/* Contact form */}
+          {/* Kolshi C.13 — message form removed. Shop contact page shows
+              contact info only; reach-out happens through the vendor's
+              own channels (phone, website, socials) until Kolshi ships a
+              conversations module. */}
           <div className="order-1 w-full p-5 mb-8 rounded-lg bg-light md:order-2 md:mb-0 md:p-8 ltr:md:ml-7 rtl:md:mr-7 ltr:lg:ml-9 rtl:lg:mr-9">
-            <h1 className="mb-2.5 font-body text-xl font-bold text-heading md:text-2xl">
-              {t('text-vendor-comments')}
+            <h1 className="mb-4 font-body text-xl font-bold text-heading md:text-2xl">
+              {shopData?.name}
             </h1>
-            <VendorContactForm shop={shopData} />
+            {shopData?.description && (
+              <p className="text-sm leading-6 text-body whitespace-pre-line">
+                {shopData.description}
+              </p>
+            )}
           </div>
         </div>
       </div>

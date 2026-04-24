@@ -3,7 +3,6 @@ import type {
   HomePageProps,
   PopularProductQueryOptions,
   SettingsQueryOptions,
-  TypeQueryOptions,
   BestSellingProductQueryOptions,
 } from '@/types';
 import type { GetStaticPaths, GetStaticProps } from 'next';
@@ -16,27 +15,26 @@ import { API_ENDPOINTS } from './client/api-endpoints';
 import {
   CATEGORIES_PER_PAGE,
   PRODUCTS_PER_PAGE,
-  TYPES_PER_PAGE,
 } from './client/variables';
 
 type ParsedQueryParams = {
   pages: string[];
 };
 
-// This function gets called at build time
+/**
+ * Kolshi Q.1 — the Pickbazar template drove the homepage from a
+ * `/types` catalogue that picked the layout, banners, and curated
+ * shelves per vertical. Kolshi has no `/types` concept, so SSR now
+ * falls back to a single "default" page rendered with the classic
+ * layout. We still emit per-locale paths for the root so the router
+ * pre-renders Arabic and English.
+ */
 export const getStaticPaths: GetStaticPaths<ParsedQueryParams> = async ({
   locales,
 }) => {
   invariant(locales, 'locales is not defined');
-  const data = await client.types.all({ limit: 100 });
-  const paths = data?.flatMap((type) =>
-    locales?.map((locale) => ({ params: { pages: [type.slug] }, locale }))
-  );
-  // We'll pre-render only these paths at build time also with the slash route.
   return {
-    paths: paths.concat(
-      locales?.map((locale) => ({ params: { pages: [] }, locale }))
-    ),
+    paths: locales.map((locale) => ({ params: { pages: [] }, locale })),
     fallback: 'blocking',
   };
 };
@@ -44,88 +42,80 @@ export const getStaticPaths: GetStaticPaths<ParsedQueryParams> = async ({
 export const getStaticProps: GetStaticProps<
   HomePageProps,
   ParsedQueryParams
-> = async ({ locale, params }) => {
+> = async ({ locale }) => {
   const queryClient = new QueryClient();
+
   await queryClient.prefetchQuery(
     [API_ENDPOINTS.SETTINGS, { language: locale }],
-    ({ queryKey }) => client.settings.all(queryKey[1] as SettingsQueryOptions)
-  );
-  const types = await queryClient.fetchQuery(
-    [API_ENDPOINTS.TYPES, { limit: TYPES_PER_PAGE, language: locale }],
-    ({ queryKey }) => client.types.all(queryKey[1] as TypeQueryOptions)
+    ({ queryKey }) =>
+      client.settings.all(queryKey[1] as SettingsQueryOptions),
   );
 
-  const { pages } = params!;
-  let pageType: string | undefined;
-  if (!pages) {
-    pageType =
-      types.find((type) => type?.settings?.isHome)?.slug ?? types?.[0]?.slug;
-  } else {
-    pageType = pages[0];
-  }
-
-  if (!types?.some((t) => t.slug === pageType)) {
-    return {
-      notFound: true,
-      // This is require to regenerate the page
-      revalidate: 120,
-    };
-  }
-
+  // Types are now synthetic (decision log E.5). Prefetch the stub so
+  // `useType` resolves synchronously on first render.
   await queryClient.prefetchQuery(
-    [API_ENDPOINTS.TYPES, { slug: pageType, language: locale }],
-    ({ queryKey }: any) => client.types.get(queryKey[1])
+    [API_ENDPOINTS.TYPES, { limit: 100, language: locale }],
+    () => client.types.all({ limit: 100 }),
   );
-  const productVariables = {
-    type: pageType,
+
+  const productVariables: Record<string, unknown> = {
     limit: PRODUCTS_PER_PAGE,
   };
+
   await queryClient.prefetchInfiniteQuery(
     [
       API_ENDPOINTS.PRODUCTS,
-      { limit: PRODUCTS_PER_PAGE, type: pageType, language: locale },
+      { limit: PRODUCTS_PER_PAGE, language: locale },
     ],
-    ({ queryKey }) => client.products.all(queryKey[1] as any)
+    ({ queryKey }) => client.products.all(queryKey[1] as any),
   );
 
-  const popularProductVariables = {
-    type_slug: pageType,
+  const popularProductVariables: Partial<PopularProductQueryOptions> = {
     limit: 10,
-    with: 'type;author',
     language: locale,
   };
 
-  // Only prefetch popular products for `book` demo
-  if (pageType === 'book') {
-    await queryClient.prefetchQuery(
-      [API_ENDPOINTS.PRODUCTS_POPULAR, popularProductVariables],
-      ({ queryKey }) =>
-        client.products.popular(queryKey[1] as PopularProductQueryOptions)
-    );
+  await queryClient.prefetchQuery(
+    [API_ENDPOINTS.PRODUCTS_POPULAR, popularProductVariables],
+    ({ queryKey }) =>
+      client.products.popular(queryKey[1] as PopularProductQueryOptions),
+  );
 
-    await queryClient.prefetchQuery(
-      [API_ENDPOINTS.BEST_SELLING_PRODUCTS, popularProductVariables],
-      ({ queryKey }) =>
-        client.products.bestSelling(
-          queryKey[1] as BestSellingProductQueryOptions
-        )
-    );
-  }
+  await queryClient.prefetchQuery(
+    [API_ENDPOINTS.PRODUCTS_BEST_SELLING, popularProductVariables],
+    ({ queryKey }) =>
+      client.products.bestSelling(
+        queryKey[1] as BestSellingProductQueryOptions,
+      ),
+  );
 
-  const categoryVariables = {
-    type: pageType,
+  await queryClient.prefetchQuery(
+    [API_ENDPOINTS.PRODUCTS_NEW_ARRIVALS, popularProductVariables],
+    ({ queryKey }) =>
+      client.products.newArrivals(queryKey[1] as PopularProductQueryOptions),
+  );
+
+  // Category tree — preferred over the paginated `all` query because it
+  // gives us the full hierarchy in one round-trip for the sidebar /
+  // mega-menu. The paginated variant is still seeded so
+  // `useCategories()` stays warm.
+  const categoryVariables: Partial<CategoryQueryOptions> = {
     limit: CATEGORIES_PER_PAGE,
     language: locale,
-    parent:
-      types.find((t) => t.slug === pageType)?.settings.layoutType === 'minimal'
-        ? 'all'
-        : 'null',
+    parent: 'null',
   };
+
+  await queryClient.prefetchQuery(
+    [API_ENDPOINTS.CATEGORIES_TREE, { language: locale }],
+    () => client.categories.tree({ language: locale }),
+  );
+
   await queryClient.prefetchInfiniteQuery(
     [API_ENDPOINTS.CATEGORIES, categoryVariables],
     ({ queryKey }) =>
       client.categories.all(queryKey[1] as CategoryQueryOptions),
   );
+
   return {
     props: {
       variables: {
@@ -134,30 +124,18 @@ export const getStaticProps: GetStaticProps<
         categories: categoryVariables,
         bestSellingProducts: popularProductVariables,
         layoutSettings: {
-          ...types.find((t) => t.slug === pageType)?.settings,
+          isHome: true,
+          layoutType: 'classic',
+          productCard: 'helium',
         },
         types: {
-          type: pageType,
+          type: 'kolshi',
         },
       },
-      layout:
-        types.find((t) => t.slug === pageType)?.settings.layoutType ??
-        'default',
+      layout: 'classic',
       ...(await serverSideTranslations(locale!, ['common', 'banner'])),
       dehydratedState: JSON.parse(JSON.stringify(dehydrate(queryClient))),
     },
     revalidate: 120,
   };
 };
-
-/* Fix : locales: 14kB,
-popularProducts: 30kB,
-category: 22kB,
-groups: 8kB,
-group: 2kB,
-settings: 2kB,
-perProduct: 4.2 * 30 = 120kB,
-total = 14 + 30 + 22 + 8 + 2 + 2 + 120 = 198kB
-others: 225 - 198 = 27kB
-
- */

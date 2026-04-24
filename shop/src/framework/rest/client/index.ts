@@ -4,6 +4,7 @@ import type {
   AuthorPaginator,
   AuthorQueryOptions,
   AuthResponse,
+  Category,
   CategoryPaginator,
   CategoryQueryOptions,
   ChangePasswordUserInput,
@@ -107,45 +108,152 @@ import { API_ENDPOINTS } from './api-endpoints';
 import { HttpClient } from './http-client';
 //@ts-ignore
 import { OTPVerifyResponse } from '@/types';
+import type {
+  ProductImage,
+  ProductVariation,
+  ReviewSummary,
+} from '@/types';
+import { resolveSortBy } from '../utils/sort-mapper';
 
 class Client {
   products = {
+    /**
+     * `GET /products` — Kolshi's main catalogue endpoint.
+     *
+     * Callers still pass the template's vocabulary (`shop_id`, `min_price`,
+     * `categories`, etc.); `formatProductsArgs` has already translated most
+     * of that to `shopId` / `categoryId` / `minPrice` / `sortBy`. We strip
+     * the remaining legacy keys here so they never reach the wire.
+     */
     all: ({
-      type,
-      categories,
-      name,
-      shop_id,
-      author,
-      manufacturer,
-      min_price,
-      max_price,
-      tags,
+      // legacy aliases — must never be forwarded to the backend.
+      type: _type,
+      author: _author,
+      manufacturer: _manufacturer,
+      tags: _tags,
+      visibility: _visibility,
+      searchJoin: _searchJoin,
+      with: _with,
+      orderBy: _orderBy,
+      sortedBy: _sortedBy,
+      name: _name,
+      price: _price,
+      min_price: _min_price,
+      max_price: _max_price,
+      categories: _categories,
+      shop_id: _shop_id,
+      sortBy,
       ...params
-    }: Partial<ProductQueryOptions>) =>
+    }: Partial<ProductQueryOptions> & Record<string, unknown>) =>
       HttpClient.get<ProductPaginator>(API_ENDPOINTS.PRODUCTS, {
-        searchJoin: 'and',
-        with: 'type;author',
         ...params,
-        search: HttpClient.formatSearchParams({
-          type,
-          categories,
-          name,
-          shop_id,
-          author,
-          manufacturer,
-          min_price,
-          max_price,
-          tags,
-          status: 'publish',
-          visibility: 'visibility_public',
-        }),
+        sortBy: resolveSortBy(sortBy, 'newest'),
+        isActive: params.isActive ?? true,
       }),
-    popular: (params: Partial<PopularProductQueryOptions>) =>
-      HttpClient.get<Product[]>(API_ENDPOINTS.PRODUCTS_POPULAR, params),
 
-    bestSelling: (params: Partial<BestSellingProductQueryOptions>) =>
-      HttpClient.get<Product[]>(API_ENDPOINTS.BEST_SELLING_PRODUCTS, params),
+    /** `GET /products?sortBy=popular` — replaces legacy `/products/popular`. */
+    popular: ({
+      limit = 10,
+      type_slug: _typeSlug,
+      with: _with,
+      range: _range,
+      ...params
+    }: Partial<PopularProductQueryOptions> & Record<string, unknown>) =>
+      HttpClient.get<Product[] | ProductPaginator>(API_ENDPOINTS.PRODUCTS, {
+        ...params,
+        limit,
+        sortBy: 'popular',
+        isActive: true,
+      }),
 
+    /** `GET /products?sortBy=popular` (alias of popular — Kolshi has no best-selling endpoint). */
+    bestSelling: ({
+      limit = 10,
+      type_slug: _typeSlug,
+      with: _with,
+      range: _range,
+      ...params
+    }: Partial<BestSellingProductQueryOptions> & Record<string, unknown>) =>
+      HttpClient.get<Product[] | ProductPaginator>(API_ENDPOINTS.PRODUCTS, {
+        ...params,
+        limit,
+        sortBy: 'popular',
+        isActive: true,
+      }),
+
+    /** `GET /products?sortBy=newest` — new-arrivals shelf. */
+    newArrivals: ({
+      limit = 10,
+      ...params
+    }: Partial<ProductQueryOptions> & Record<string, unknown>) =>
+      HttpClient.get<Product[] | ProductPaginator>(API_ENDPOINTS.PRODUCTS, {
+        ...params,
+        limit,
+        sortBy: 'newest',
+        isActive: true,
+      }),
+
+    /** `GET /products/slug/{slug}`. */
+    get: ({ slug, language }: GetParams) =>
+      HttpClient.get<Product>(`${API_ENDPOINTS.PRODUCTS}/slug/${slug}`, {
+        language,
+      }),
+
+    /** `GET /products/{id}/images`. */
+    images: (id: string | number) =>
+      HttpClient.get<ProductImage[]>(
+        `${API_ENDPOINTS.PRODUCTS}/${id}/images`,
+      ),
+
+    /** `GET /products/{id}/variations?enabledOnly=true`. */
+    variations: (id: string | number, enabledOnly = true) =>
+      HttpClient.get<ProductVariation[]>(
+        `${API_ENDPOINTS.PRODUCTS}/${id}/variations`,
+        { enabledOnly },
+      ),
+
+    /** `GET /reviews/products/{id}/summary`. */
+    reviewSummary: (id: string | number) =>
+      HttpClient.get<ReviewSummary>(
+        `${API_ENDPOINTS.PRODUCTS_REVIEWS}/products/${id}/summary`,
+      ),
+
+    /** `GET /products/{id}/related`. */
+    related: (id: string | number, params?: Record<string, unknown>) =>
+      HttpClient.get<Product[]>(
+        `${API_ENDPOINTS.PRODUCTS}/${id}/related`,
+        params,
+      ),
+
+    /** `GET /products/{id}/frequently-bought-together`. */
+    frequentlyBoughtTogether: (
+      id: string | number,
+      params?: Record<string, unknown>,
+    ) =>
+      HttpClient.get<Product[]>(
+        `${API_ENDPOINTS.PRODUCTS}/${id}/frequently-bought-together`,
+        params,
+      ),
+
+    /** `GET /products/recently-viewed`. */
+    recentlyViewed: (params?: Record<string, unknown>) =>
+      HttpClient.get<Product[]>(
+        API_ENDPOINTS.PRODUCTS_RECENTLY_VIEWED,
+        params,
+      ),
+
+    /** `DELETE /products/recently-viewed` — Kolshi's "clear history" hook. */
+    clearRecentlyViewed: () =>
+      HttpClient.delete<void>(API_ENDPOINTS.PRODUCTS_RECENTLY_VIEWED),
+
+    /** `POST /products/{id}/track-view` — fire-and-forget on PDP mount. */
+    trackView: (id: string | number) =>
+      HttpClient.post<void>(
+        `${API_ENDPOINTS.PRODUCTS}/${id}/track-view`,
+        {},
+      ),
+
+    // ─── Legacy / Coming-Soon stubs (feature Delete in S6) ──────────────
     questions: ({ question, ...params }: QuestionQueryOptions) =>
       HttpClient.get<QuestionPaginator>(API_ENDPOINTS.PRODUCTS_QUESTIONS, {
         searchJoin: 'and',
@@ -154,23 +262,18 @@ class Client {
           question,
         }),
       }),
-
-    get: ({ slug, language }: GetParams) =>
-      HttpClient.get<Product>(`${API_ENDPOINTS.PRODUCTS}/${slug}`, {
-        language,
-        searchJoin: 'and',
-        with: 'categories;shop;type;variations;variations.attribute.values;variation_options;tags',
-      }),
-
-    createFeedback: (input: CreateFeedbackInput) =>
-      HttpClient.post<Feedback>(API_ENDPOINTS.FEEDBACK, input),
-    createAbuseReport: (input: CreateAbuseReportInput) =>
-      HttpClient.post<Review>(
-        API_ENDPOINTS.PRODUCTS_REVIEWS_ABUSE_REPORT,
-        input,
+    createFeedback: (_input: CreateFeedbackInput) =>
+      Promise.reject<Feedback>(
+        new Error('Feedback is not supported in Kolshi.'),
       ),
-    createQuestion: (input: CreateQuestionInput) =>
-      HttpClient.post<Review>(API_ENDPOINTS.PRODUCTS_QUESTIONS, input),
+    createAbuseReport: (_input: CreateAbuseReportInput) =>
+      Promise.reject<Review>(
+        new Error('Abuse reporting is not supported in Kolshi.'),
+      ),
+    createQuestion: (_input: CreateQuestionInput) =>
+      Promise.reject<Review>(
+        new Error('Questions are not supported in Kolshi.'),
+      ),
     getProductsByFlashSale: ({ slug, language }: GetParams) => {
       return HttpClient.get<Product>(
         `${API_ENDPOINTS.PRODUCTS_BY_FLASH_SALE}`,
@@ -220,12 +323,64 @@ class Client {
       ),
   };
   categories = {
-    all: ({ type, ...params }: Partial<CategoryQueryOptions>) =>
-      HttpClient.get<CategoryPaginator>(API_ENDPOINTS.CATEGORIES, {
-        searchJoin: 'and',
-        ...params,
-        ...(type && { search: HttpClient.formatSearchParams({ type }) }),
-      }),
+    /**
+     * `GET /categories` (paginated). Kolshi doesn't scope categories by
+     * `type`, so the legacy `type` filter is dropped silently.
+     *
+     * The template's `parent` contract ("all" / "null" / numeric id) is
+     * honoured client-side:
+     *   - `"null"` / `null` → roots-only via `/categories/roots`
+     *   - numeric / string id → children via `/categories/{id}/children`
+     *   - otherwise → the plain paginated endpoint
+     */
+    all: async ({
+      type: _type,
+      parent,
+      parentId,
+      rootsOnly,
+      ...params
+    }: Partial<CategoryQueryOptions> & Record<string, unknown>) => {
+      if (rootsOnly || parent === null || parent === 'null') {
+        const roots = await HttpClient.get<Category[]>(
+          API_ENDPOINTS.CATEGORIES_ROOTS,
+          params,
+        );
+        return wrapListAsPaginator(roots) as unknown as CategoryPaginator;
+      }
+      if (parentId || (parent && parent !== 'all')) {
+        const children = await HttpClient.get<Category[]>(
+          `${API_ENDPOINTS.CATEGORIES}/${parentId ?? parent}/children`,
+          params,
+        );
+        return wrapListAsPaginator(children) as unknown as CategoryPaginator;
+      }
+      return HttpClient.get<CategoryPaginator>(
+        API_ENDPOINTS.CATEGORIES,
+        params,
+      );
+    },
+
+    /** `GET /categories/tree`. */
+    tree: (params?: Record<string, unknown>) =>
+      HttpClient.get<Category[]>(API_ENDPOINTS.CATEGORIES_TREE, params),
+
+    /** `GET /categories/roots`. */
+    roots: (params?: Record<string, unknown>) =>
+      HttpClient.get<Category[]>(API_ENDPOINTS.CATEGORIES_ROOTS, params),
+
+    /** `GET /categories/slug/{slug}`. */
+    bySlug: (slug: string, params?: Record<string, unknown>) =>
+      HttpClient.get<Category>(
+        `${API_ENDPOINTS.CATEGORIES}/slug/${slug}`,
+        params,
+      ),
+
+    /** `GET /categories/{id}/children`. */
+    children: (id: string | number, params?: Record<string, unknown>) =>
+      HttpClient.get<Category[]>(
+        `${API_ENDPOINTS.CATEGORIES}/${id}/children`,
+        params,
+      ),
   };
   tags = {
     all: ({ type, ...params }: Partial<TagQueryOptions>) =>
@@ -235,39 +390,61 @@ class Client {
         ...(type && { search: HttpClient.formatSearchParams({ type }) }),
       }),
   };
+  /**
+   * Kolshi deleted the template's `/types` catalogue (decision log E.5).
+   * The shop's homepage driver, header/menu, and several SSR prefetches
+   * still read `types.all()` / `types.get()` to pick a layout and seed
+   * the banner. Instead of rewriting all of them at once, we return a
+   * single synthetic "Kolshi" type with the classic layout so every
+   * existing consumer keeps rendering. The actual `/types` endpoint is
+   * never called.
+   *
+   * S6 deletes this stub alongside the last `types` caller.
+   */
   types = {
-    all: (params?: Partial<TypeQueryOptions>) =>
-      HttpClient.get<Type[]>(API_ENDPOINTS.TYPES, params),
-    get: ({ slug, language }: { slug: string; language: string }) =>
-      HttpClient.get<Type>(`${API_ENDPOINTS.TYPES}/${slug}`, { language }),
+    all: async (_params?: Partial<TypeQueryOptions>): Promise<Type[]> => [
+      KOLSHI_DEFAULT_TYPE,
+    ],
+    get: async ({ slug }: { slug: string; language: string }): Promise<Type> =>
+      ({ ...KOLSHI_DEFAULT_TYPE, slug: slug || KOLSHI_DEFAULT_TYPE.slug }),
   };
   shops = {
-    all: (params: Partial<ShopQueryOptions>) =>
+    /** `GET /shops` (paginated). Legacy `is_active`/search prefix stripped. */
+    all: ({
+      is_active: _isActive,
+      name,
+      ...params
+    }: Partial<ShopQueryOptions> & Record<string, unknown>) =>
       HttpClient.get<ShopPaginator>(API_ENDPOINTS.SHOPS, {
-        search: HttpClient.formatSearchParams({
-          is_active: '1',
-        }),
+        isActive: true,
+        ...(name ? { searchTerm: String(name) } : {}),
         ...params,
       }),
+
+    /** `GET /shops/slug/{slug}`. */
     get: (slug: string) =>
-      HttpClient.get<Shop>(`${API_ENDPOINTS.SHOPS}/${slug}`),
+      HttpClient.get<Shop>(`${API_ENDPOINTS.SHOPS}/slug/${slug}`),
 
-    searchNearShops: (input: ShopMapLocation) =>
-      HttpClient.get<any>(API_ENDPOINTS.NEAR_SHOPS, input),
-
-    getSearchNearShops: ({ lat, lng }: ShopMapLocation) =>
-      HttpClient.get<any>(`${API_ENDPOINTS.NEAR_SHOPS}/${lat}/${lng}`),
-
-    shopMaintenanceEvent: ({
-      shop_id,
-      isMaintenance,
-      isShopUnderMaintenance,
-    }: ShopMaintenanceEvent) =>
-      HttpClient.post<Shop>(API_ENDPOINTS.SHOP_MAINTENANCE_EVENT, {
-        shop_id,
-        isMaintenance,
-        isShopUnderMaintenance,
+    /** `GET /shops/search?searchTerm=…`. */
+    search: (searchTerm: string, params?: Record<string, unknown>) =>
+      HttpClient.get<ShopPaginator>(`${API_ENDPOINTS.SHOPS}/search`, {
+        searchTerm,
+        ...params,
       }),
+
+    // ─── Coming Soon / Delete stubs ──────────────────────────────────────
+    searchNearShops: (_input: ShopMapLocation) =>
+      Promise.reject<any>(
+        new Error('Near-by shops are not supported in Kolshi.'),
+      ),
+    getSearchNearShops: (_input: ShopMapLocation) =>
+      Promise.reject<any>(
+        new Error('Near-by shops are not supported in Kolshi.'),
+      ),
+    shopMaintenanceEvent: (_input: ShopMaintenanceEvent) =>
+      Promise.reject<Shop>(
+        new Error('Shop maintenance toggle is not supported in Kolshi.'),
+      ),
   };
   storeNotice = {
     all: ({ shop_id, shops, ...params }: Partial<StoreNoticeQueryOptions>) => {
@@ -546,19 +723,66 @@ class Client {
       ),
   };
   settings = {
-    all: (params?: SettingsQueryOptions) =>
-      HttpClient.get<Settings>(API_ENDPOINTS.SETTINGS, { ...params }),
-    upload: (input: File[]) => {
-      let formData = new FormData();
-      input.forEach((attachment) => {
-        formData.append('attachment[]', attachment);
-      });
-      return HttpClient.post<Attachment[]>(API_ENDPOINTS.UPLOADS, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+    /**
+     * `GET /settings` returns a flat list of `{setting_key, setting_value,
+     * category}` rows grouped into `FINANCIAL / PLATFORM / EMAIL /
+     * SECURITY / DELIVERY`. Template consumers expect a dictionary under
+     * `.options`, so we collapse the list here. `JSON`-shaped values are
+     * parsed best-effort (e.g. nested `maintenance` object). Unknown
+     * values are kept as strings.
+     */
+    all: async (_params?: SettingsQueryOptions): Promise<Settings> => {
+      const raw = await HttpClient.get<
+        | Array<{
+            setting_key?: string;
+            key?: string;
+            setting_value?: unknown;
+            value?: unknown;
+            category?: string;
+          }>
+        | Settings
+        | { data: any[] }
+      >(API_ENDPOINTS.SETTINGS);
+
+      const list: Array<{ key?: string; value?: unknown }> = Array.isArray(
+        raw,
+      )
+        ? (raw as any[])
+        : Array.isArray((raw as any)?.data)
+        ? (raw as any).data
+        : [];
+
+      if (list.length === 0 && !Array.isArray(raw)) {
+        // Backend already wraps the payload in `{ options: ... }` — use as-is.
+        return raw as Settings;
+      }
+
+      const options: Record<string, unknown> = {};
+      for (const row of list) {
+        const k = (row as any).setting_key ?? (row as any).key;
+        if (!k) continue;
+        const rawValue = (row as any).setting_value ?? (row as any).value;
+        options[k] = coerceSettingValue(rawValue);
+      }
+
+      return {
+        id: 'kolshi-public-settings',
+        name: 'Kolshi',
+        slug: 'kolshi',
+        options: options as Settings['options'],
+      };
     },
+    /**
+     * Kolshi does not accept multipart uploads; clients post direct to
+     * Cloudinary via `useCloudinaryUpload`. This shim stays so legacy
+     * callers compile until they are rewired in later phases.
+     */
+    upload: (_input: File[]) =>
+      Promise.reject<Attachment[]>(
+        new Error(
+          'Multipart uploads are not supported by Kolshi — use Cloudinary.',
+        ),
+      ),
   };
   cards = {
     all: (params?: any) =>
@@ -685,3 +909,88 @@ class Client {
 const client = new Client();
 
 export default client;
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Internal helpers — intentionally unexported. Grouped here so each
+ * resource block above stays readable.
+ * ──────────────────────────────────────────────────────────────────── */
+
+/**
+ * Synthetic Kolshi "type" consumed by legacy homepage / SSR code paths.
+ * Every section is enabled so the default layout shows categories,
+ * popular + new-arrivals rails, and the hero banner. Banner/promo
+ * slides default to empty arrays so the render loops are no-ops
+ * until marketing seeds real assets through `/settings`.
+ */
+const KOLSHI_DEFAULT_TYPE: Type = {
+  id: 'kolshi-default',
+  name: 'Kolshi',
+  slug: 'kolshi',
+  banners: [] as any,
+  promotional_sliders: [] as any,
+  settings: {
+    isHome: true,
+    layoutType: 'classic',
+    productCard: 'helium',
+    bestSelling: { enable: true, title: 'text-best-selling-products' },
+    popularProducts: { enable: true, title: 'text-popular-products' },
+    category: { enable: true, title: 'text-categories' },
+    handpickedProducts: { enable: false, title: '' },
+    newArrival: { enable: true, title: 'text-new-arrivals' },
+    authors: { enable: false, title: '' },
+    manufactures: { enable: false, title: '' },
+  },
+};
+
+/**
+ * Coerces raw string setting values into richer JS types where possible.
+ * Kolshi stores booleans / numbers / JSON as plain strings so we try
+ * cheap parses in order of cost. Failures return the original value
+ * untouched — consumers are defensive already.
+ */
+function coerceSettingValue(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw;
+  const trimmed = raw.trim();
+  if (trimmed === '') return raw;
+  if (trimmed === 'true') return true;
+  if (trimmed === 'false') return false;
+  if (trimmed === 'null') return null;
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) return Number(trimmed);
+  if (
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  ) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      /* keep as string */
+    }
+  }
+  return raw;
+}
+
+/**
+ * Synthesises a paginator envelope around a plain list so legacy
+ * infinite-query consumers keep compiling while Kolshi returns simple
+ * arrays (categories/roots/children). Total/`last_page` flag that the
+ * result is the entire dataset — the caller's `getNextPageParam` stops
+ * immediately.
+ */
+function wrapListAsPaginator<T>(list: T[] | null | undefined) {
+  const data = Array.isArray(list) ? list : [];
+  return {
+    data,
+    current_page: 1,
+    last_page: 1,
+    from: data.length > 0 ? 1 : 0,
+    to: data.length,
+    total: data.length,
+    per_page: data.length,
+    first_page_url: '',
+    last_page_url: '',
+    next_page_url: null,
+    prev_page_url: null,
+    path: '',
+    links: [] as any[],
+  };
+}

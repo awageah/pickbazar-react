@@ -12,6 +12,15 @@ import { useTranslation } from 'next-i18next';
 import { useRouter } from 'next/router';
 import { setMaintenanceDetails } from './utils/maintenance-utils';
 
+/**
+ * `GET /settings` — public Kolshi settings.
+ *
+ * `client.settings.all` returns the Pickbazar-shaped envelope
+ * (`{ id, name, slug, options }`) whether the backend responded with
+ * the flat `{ setting_key, setting_value }` list or the already-
+ * wrapped object. Consumers continue to read `settings.<key>` via the
+ * returned `settings` dictionary.
+ */
 export function useSettings() {
   const { locale } = useRouter();
 
@@ -21,8 +30,7 @@ export function useSettings() {
 
   const { data, isLoading, error, isFetching } = useQuery<Settings, Error>(
     [API_ENDPOINTS.SETTINGS, formattedOptions],
-    ({ queryKey, pageParam }) =>
-      client.settings.all(Object.assign({}, queryKey[1], pageParam))
+    () => client.settings.all(formattedOptions),
   );
   const { isUnderMaintenance = false, maintenance = {} } = data?.options! ?? {};
   setMaintenanceDetails(isUnderMaintenance, maintenance);
@@ -34,20 +42,19 @@ export function useSettings() {
   };
 }
 
-export const useUploads = ({ onChange, defaultFiles }: any) => {
-  const [files, setFiles] = useState<FileWithPath[]>(
-    getPreviewImage(defaultFiles)
-  );
+/**
+ * Kolshi has no multipart upload endpoint. `useUploads` stays as a
+ * surface for legacy callers but now toasts "coming soon" and returns
+ * the already-displayed preview list untouched. New uploaders must
+ * use `useCloudinaryUpload` from `framework/rest/utils/cloudinary.ts`.
+ */
+export const useUploads = ({ defaultFiles }: any) => {
+  const { t } = useTranslation('common');
+  const [files] = useState<FileWithPath[]>(getPreviewImage(defaultFiles));
 
   const { mutate: upload, isLoading } = useMutation(client.settings.upload, {
-    onSuccess: (data) => {
-      if (onChange) {
-        const dataAfterRemoveTypename = data?.map(
-          ({ __typename, ...rest }: any) => rest
-        );
-        onChange(dataAfterRemoveTypename);
-        setFiles(getPreviewImage(dataAfterRemoveTypename));
-      }
+    onError: () => {
+      toast.info(`${t('text-upload-migrated-to-cloudinary')}`);
     },
   });
 
@@ -59,6 +66,7 @@ export const useUploads = ({ onChange, defaultFiles }: any) => {
 };
 
 export function useSubscription() {
+  const { t } = useTranslation('common');
   let [isSubscribed, setIsSubscribed] = useState(false);
 
   const subscription = useMutation(client.users.subscribe, {
@@ -67,6 +75,7 @@ export function useSubscription() {
     },
     onError: () => {
       setIsSubscribed(false);
+      toast.info(`${t('text-newsletter-coming-soon')}`);
     },
   });
 

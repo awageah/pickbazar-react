@@ -13,11 +13,17 @@ interface Plan {
   orderBy: string;
   sortedBy: 'ASC' | 'DESC';
 }
+/**
+ * Sort plans exposed in the shop UI. The `orderBy` / `sortedBy` pair is
+ * translated to Kolshi's `sortBy` enum by `mapLegacySort` before the
+ * request leaves the axios layer, so the human-readable vocabulary
+ * stays in the UI while the wire format is Kolshi-native.
+ */
 const plans: Plan[] = [
   {
     id: '1',
     key: 'sorting',
-    label: 'New Released',
+    label: 'Newest',
     value: 'created_at',
     orderBy: 'created_at',
     sortedBy: 'DESC',
@@ -25,17 +31,33 @@ const plans: Plan[] = [
   {
     id: '2',
     key: 'sorting',
-    label: 'Sort by Price: Low to High',
-    value: 'min_price',
-    orderBy: 'min_price',
-    sortedBy: 'ASC',
+    label: 'Most Popular',
+    value: 'popular',
+    orderBy: 'popular',
+    sortedBy: 'DESC',
   },
   {
     id: '3',
     key: 'sorting',
+    label: 'Top Rated',
+    value: 'rating',
+    orderBy: 'rating',
+    sortedBy: 'DESC',
+  },
+  {
+    id: '4',
+    key: 'sorting',
+    label: 'Sort by Price: Low to High',
+    value: 'price',
+    orderBy: 'price',
+    sortedBy: 'ASC',
+  },
+  {
+    id: '5',
+    key: 'sorting',
     label: 'Sort by Price: High to Low',
-    value: 'max_price',
-    orderBy: 'max_price',
+    value: 'price',
+    orderBy: 'price',
     sortedBy: 'DESC',
   },
 ];
@@ -50,7 +72,12 @@ const Sorting: React.FC<Props> = ({ variant = 'radio' }) => {
   const { isRTL } = useIsRTL();
   const [selected, setSelected] = useState(
     () =>
-      plans.find((plan) => plan.orderBy === router.query.orderBy) ?? plans[0]
+      plans.find(
+        (plan) =>
+          plan.orderBy === router.query.orderBy &&
+          (!router.query.sortedBy ||
+            plan.sortedBy === (router.query.sortedBy as 'ASC' | 'DESC')),
+      ) ?? plans[0],
   );
 
   useEffect(() => {
