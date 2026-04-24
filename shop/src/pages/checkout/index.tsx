@@ -70,7 +70,7 @@ export default function CheckoutPage() {
             />
 
             <AddressGrid
-              userId={id!}
+              userId={String(id ?? '')}
               className="bg-light p-5 shadow-700 md:p-8"
               label={t('text-shipping-address')}
               count={2}

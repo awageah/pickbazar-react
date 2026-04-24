@@ -3,10 +3,7 @@ import type {
   Product,
   ProductPaginator,
   ProductQueryOptions,
-  QuestionPaginator,
-  QuestionQueryOptions,
   BestSellingProductQueryOptions,
-  GetParams,
   ProductImage,
   ProductVariation,
   ReviewSummary,
@@ -22,7 +19,6 @@ import { API_ENDPOINTS } from './client/api-endpoints';
 import { mapPaginatorData } from '@/framework/utils/data-mappers';
 import { formatProductsArgs } from '@/framework/utils/format-products-args';
 import { useTranslation } from 'next-i18next';
-import { useModalAction } from '@/components/ui/modal/modal.context';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/router';
 
@@ -300,91 +296,4 @@ export function useClearRecentlyViewed() {
       queryClient.invalidateQueries(API_ENDPOINTS.PRODUCTS_RECENTLY_VIEWED);
     },
   });
-}
-
-/* ─────────────────────────────────────────────────────────────────────
- * Legacy / Coming-Soon hooks kept as compiling shims. S6 removes these
- * alongside their consumers (questions / feedback / abuse reporting).
- * ──────────────────────────────────────────────────────────────────── */
-
-export function useQuestions(options?: Partial<QuestionQueryOptions>) {
-  const {
-    data: response,
-    isLoading,
-    error,
-    isFetching,
-  } = useQuery<QuestionPaginator, Error>(
-    [API_ENDPOINTS.PRODUCTS_QUESTIONS, options],
-    ({ queryKey }) =>
-      client.products.questions(
-        Object.assign({}, queryKey[1] as QuestionQueryOptions),
-      ),
-    {
-      keepPreviousData: true,
-      enabled: false,
-    },
-  );
-  return {
-    questions: response?.data ?? [],
-    paginatorInfo: mapPaginatorData(response),
-    isLoading,
-    error,
-    isFetching,
-  };
-}
-
-export function useCreateFeedback() {
-  const { t } = useTranslation('common');
-  const { mutate: createFeedback, isLoading } = useMutation(
-    client.products.createFeedback,
-    {
-      onError: () => {
-        toast.info(`${t('text-feature-coming-soon')}`);
-      },
-    },
-  );
-  return {
-    createFeedback,
-    isLoading,
-  };
-}
-
-export function useCreateAbuseReport() {
-  const { t } = useTranslation('common');
-  const { closeModal } = useModalAction();
-  const { mutate: createAbuseReport, isLoading } = useMutation(
-    client.products.createAbuseReport,
-    {
-      onError: () => {
-        toast.info(`${t('text-feature-coming-soon')}`);
-      },
-      onSettled: () => {
-        closeModal();
-      },
-    },
-  );
-  return {
-    createAbuseReport,
-    isLoading,
-  };
-}
-
-export function useCreateQuestion() {
-  const { t } = useTranslation('common');
-  const { closeModal } = useModalAction();
-  const { mutate: createQuestion, isLoading } = useMutation(
-    client.products.createQuestion,
-    {
-      onError: () => {
-        toast.info(`${t('text-feature-coming-soon')}`);
-      },
-      onSettled: () => {
-        closeModal();
-      },
-    },
-  );
-  return {
-    createQuestion,
-    isLoading,
-  };
 }

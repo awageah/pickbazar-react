@@ -1,4 +1,3 @@
-import SuperAdminContactForm from '@/components/settings/super-admin-contact-form';
 import { GoogleMapLocation } from '@/types';
 import { MapPinNew } from '@/components/icons/map-pin';
 import Link from '@/components/ui/link';
@@ -71,16 +70,16 @@ const MoreInfo = ({
           )}
         </div>
 
-        <div className="mb-14 md:mb-32">
-          {contactUsTitle ? (
+        {contactUsTitle ? (
+          <div className="mb-14 md:mb-32">
             <h2 className="mb-5 text-center text-3xl font-bold">
               {contactUsTitle}
             </h2>
-          ) : (
-            ''
-          )}
-          <SuperAdminContactForm variant="drawer" />
-        </div>
+            {/* Kolshi L.5 — contact form is removed pending backend
+                support; the channels below (address / phone / website)
+                are the current path of least resistance. */}
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-3 gap-6 divide-y divide-slate-100 text-center md:gap-4 md:divide-y-0">
           <div className="col-span-full md:col-span-1">

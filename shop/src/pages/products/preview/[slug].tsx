@@ -1,6 +1,5 @@
 import { getLayout } from '@/components/layouts/layout';
 import { AttributesProvider } from '@/components/products/details/attributes.context';
-import ProductQuestions from '@/components/questions/product-questions';
 import AverageRatings from '@/components/reviews/average-ratings';
 import ProductReviews from '@/components/reviews/product-reviews';
 import cn from 'classnames';
@@ -10,7 +9,6 @@ import type { NextPageWithLayout } from '@/types';
 import isEmpty from 'lodash/isEmpty';
 import type { InferGetStaticPropsType } from 'next';
 import dynamic from 'next/dynamic';
-/// <reference types="@types/node" />
 import AccessDeniedPage from '@/components/common/access-denied';
 import { getStaticPaths, getStaticProps } from '@/framework/product.ssr';
 import {
@@ -19,17 +17,21 @@ import {
   hasAccess,
 } from '@/framework/utils/auth-utils';
 export { getStaticPaths, getStaticProps };
-//FIXME: typescript and layout
+
+/**
+ * Kolshi S6 — product preview (admin/staff only). Dropped `ProductQuestions`
+ * along with the customer-facing PDP; see decision log I.2.
+ */
 const Details = dynamic(() => import('@/components/products/details/details'));
 const BookDetails = dynamic(
-  () => import('@/components/products/details/book-details')
+  () => import('@/components/products/details/book-details'),
 );
 const RelatedProducts = dynamic(
-  () => import('@/components/products/details/related-products')
+  () => import('@/components/products/details/related-products'),
 );
 const CartCounterButton = dynamic(
   () => import('@/components/cart/cart-counter-button'),
-  { ssr: false }
+  { ssr: false },
 );
 
 const ProductPage: NextPageWithLayout<
@@ -67,11 +69,6 @@ const ProductPage: NextPageWithLayout<
               productId={product?.id}
               productType={product?.type?.slug}
             />
-            <ProductQuestions
-              productId={product?.id}
-              shopId={product?.shop?.id}
-              productType={product?.type?.slug}
-            />
             {product.type?.slug !== 'books' &&
               product?.related_products?.length > 1 && (
                 <div className="p-5 lg:p-14 xl:p-16">
@@ -88,7 +85,7 @@ const ProductPage: NextPageWithLayout<
             <button
               className={cn(
                 'inline-flex rounded  px-5 py-2.5 text-center font-semibold capitalize text-white',
-                product.status === 'draft' ? 'bg-yellow-400' : 'bg-accent'
+                product.status === 'draft' ? 'bg-yellow-400' : 'bg-accent',
               )}
             >
               {product.status === 'publish' ? 'Published' : 'Drafted'}

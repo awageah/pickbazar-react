@@ -1,5 +1,18 @@
 import React from 'react';
 
+/**
+ * Kolshi S6 — modal view identifiers.
+ *
+ * Removed relative to the stock template:
+ *   - `REFUND_REQUEST`, `QUESTION_FORM`, `ABUSE_REPORT` (decision log
+ *     H.5 / I.2 / I.4 Delete)
+ *   - `USE_NEW_PAYMENT`, `ADD_NEW_CARD`, `ADD_NEW_CARD_DURING_PAYMENT`,
+ *     `USE_SAVED_CARD`, `DELETE_CARD_MODAL`, `STRIPE_ELEMENT_MODAL`,
+ *     `GATEWAY_MODAL` (H.2 Stripe / H.3 Saved cards Delete)
+ *   - `ADD_OR_UPDATE_GUEST_ADDRESS` (F.4 guest checkout Delete)
+ *   - `NEWSLETTER_MODAL` (N.3 newsletter Delete)
+ *   - `LOCATION_BASED_SHOP` (L.8 Google-Maps near-by search Delete)
+ */
 type MODAL_VIEWS =
   | 'REGISTER'
   | 'LOGIN_VIEW'
@@ -8,26 +21,13 @@ type MODAL_VIEWS =
   | 'ADD_OR_UPDATE_ADDRESS'
   | 'ADD_OR_UPDATE_CHECKOUT_CONTACT'
   | 'ADD_OR_UPDATE_PROFILE_CONTACT'
-  | 'ADD_OR_UPDATE_GUEST_ADDRESS'
-  | 'LOCATION_BASED_SHOP'
   | 'DELETE_ADDRESS'
   | 'PRODUCT_DETAILS'
-  | 'REFUND_REQUEST'
   | 'REVIEW_RATING'
-  | 'QUESTION_FORM'
-  | 'ABUSE_REPORT'
   | 'SHOP_INFO'
   | 'SELECT_PRODUCT_VARIATION'
   | 'REVIEW_IMAGE_POPOVER'
-  | 'USE_NEW_PAYMENT'
   | 'PAYMENT_MODAL'
-  | 'STRIPE_ELEMENT_MODAL'
-  | 'DELETE_CARD_MODAL'
-  | 'ADD_NEW_CARD'
-  | 'ADD_NEW_CARD_DURING_PAYMENT'
-  | 'USE_SAVED_CARD'
-  | 'GATEWAY_MODAL'
-  | 'NEWSLETTER_MODAL'
   | 'PROMO_POPUP_MODAL'
   | 'REVIEW_POPUP_MODAL';
 

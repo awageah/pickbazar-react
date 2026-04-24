@@ -4,16 +4,21 @@ import Categories from '@/components/categories/categories';
 import CallToAction from '@/components/cta/call-to-action';
 import GroupProducts from '@/components/products/group-products';
 import PopularProductsGrid from '@/components/products/popular-products';
-import TopAuthorsGrid from '@/components/author/top-authors-grid';
 import Banner from '@/components/banners/banner';
-import TopManufacturersGrid from '@/components/manufacturer/top-manufacturers-grid';
-import { useTranslation } from 'next-i18next';
 import type { HomePageProps } from '@/types';
 import ProductGridHome from '@/components/products/grids/home';
 import BestSellingProductsGrid from '@/components/products/best-selling-products';
 
+/**
+ * Kolshi S6 — compact home layout.
+ *
+ * `TopAuthorsGrid` and `TopManufacturersGrid` are removed; Kolshi has no
+ * authors / manufacturers APIs (decision log D.7 / D.8 Delete). The
+ * `layoutSettings.authors` / `layoutSettings.manufactures` enable flags
+ * are therefore ignored — admin templates that still set them will just
+ * render nothing here until the setting is cleaned up.
+ */
 export default function CompactLayout({ variables }: HomePageProps) {
-  const { t } = useTranslation('common');
   return (
     <div className="flex flex-col flex-1 bg-white">
       <FilterBar
@@ -71,18 +76,6 @@ export default function CompactLayout({ variables }: HomePageProps) {
               }}
             />
           </SectionBlock>
-        ) : (
-          ''
-        )}
-        {variables?.layoutSettings?.authors?.enable ? (
-          <TopAuthorsGrid title={variables?.layoutSettings?.authors?.title} />
-        ) : (
-          ''
-        )}
-        {variables?.layoutSettings?.manufactures?.enable ? (
-          <TopManufacturersGrid
-            title={variables?.layoutSettings?.manufactures?.title}
-          />
         ) : (
           ''
         )}

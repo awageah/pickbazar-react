@@ -134,7 +134,7 @@ export const AddToCart = ({
   ) : (
     <>
       <Counter
-        value={getItemFromCart(item.id).quantity}
+        value={getItemFromCart(item.id)?.quantity ?? 0}
         onDecrement={handleRemoveClick}
         onIncrement={handleAddClick}
         variant={counterVariant || variant}

@@ -2,7 +2,7 @@ import classNames from 'classnames';
 import { useTranslation } from 'next-i18next';
 import { CloseIcon } from '@/components/icons/close-icon';
 import { PencilIcon } from '@/components/icons/pencil-icon';
-import { CheckIcon } from '@/components/icons/check-icon';
+import CheckIcon from '@/components/icons/check-icon';
 import type { Address } from '@/types';
 
 interface AddressProps {

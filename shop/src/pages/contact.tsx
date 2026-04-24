@@ -1,5 +1,4 @@
 import { useTranslation } from 'next-i18next';
-import SuperAdminContactForm from '@/components/settings/super-admin-contact-form';
 import { Image } from '@/components/ui/image';
 import contactIllustration from '@/assets/contact-illustration.svg';
 import { getLayout } from '@/components/layouts/layout';
@@ -127,12 +126,21 @@ export const ContactPage = () => {
             </div>
           </div>
 
-          {/* Contact form */}
+          {/*
+           * Kolshi L.5 — the contact form is removed. Kolshi has no
+           * `/contact-us` endpoint, so the page now surfaces the
+           * storefront's published contact channels (address, phone,
+           * email, website, socials in the sidebar) instead of a form
+           * that would silently fail. A contact channel will reappear
+           * here when the backend gains the endpoint.
+           */}
           <div className="order-1 mb-8 w-full rounded-lg bg-light p-5 md:order-2 md:mb-0 md:p-8 ltr:md:ml-7 rtl:md:mr-7 ltr:lg:ml-9 rtl:lg:mr-9">
-            <h1 className="mb-7 font-body text-xl font-bold text-heading md:text-2xl">
+            <h1 className="mb-4 font-body text-xl font-bold text-heading md:text-2xl">
               {t('text-questions-comments')}
             </h1>
-            <SuperAdminContactForm />
+            <p className="text-sm leading-7 text-body">
+              {t('text-contact-us-message')}
+            </p>
           </div>
         </div>
       </div>

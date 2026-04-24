@@ -1,7 +1,14 @@
 import { useRef, useState, useEffect } from 'react';
 import { Image } from '@/components/ui/image';
 import cn from 'classnames';
-import CopyToClipboard from 'react-copy-to-clipboard';
+import CopyToClipboardBase from 'react-copy-to-clipboard';
+
+const CopyToClipboard = CopyToClipboardBase as unknown as React.ComponentType<
+  React.PropsWithChildren<{
+    text: string;
+    onCopy?: (text: string, result: boolean) => void;
+  }>
+>;
 import { useTranslation } from 'next-i18next';
 import { couponPlaceholder } from '@/lib/placeholders';
 import { Coupon } from '@/types';

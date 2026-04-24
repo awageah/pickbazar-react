@@ -2,6 +2,17 @@ import { Item } from '@/store/quick-cart/cart.utils';
 import type { NextPage } from 'next';
 import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react';
 
+/**
+ * Kolshi S6 — shop-frontend type catalogue.
+ *
+ * Legacy Pickbazar types (authors / manufacturers / flash-sales / refunds /
+ * store-notices / FAQs / terms CMS / questions / abuse-reports / downloads /
+ * become-seller / payment-intents / saved cards / wallet / contact-us) have
+ * been pruned. A small number of fields on `Product` / `Order` / `User` are
+ * kept as `?: T` so legacy template components keep compiling; Kolshi never
+ * populates them, so the guarded branches never render.
+ */
+
 export type NextPageWithLayout<P = {}> = NextPage<P> & {
   authenticationRequired?: boolean;
   getLayout?: (page: ReactElement) => ReactNode;
@@ -58,17 +69,22 @@ export interface SearchParamOptions {
 }
 
 export interface QueryOptions {
-  language: string;
+  /**
+   * Optional because most Kolshi endpoints don't accept a `language` query
+   * param — the backend localises responses via the `Accept-Language`
+   * header. Kept for compatibility with legacy SSR helpers that still pass
+   * it through.
+   */
+  language?: string;
   page?: number;
   limit?: number;
-}
-
-export interface RefundPolicyQueryOptions extends QueryOptions {
-  title: string;
-  target: 'vendor' | 'customer';
-  status: 'approved' | 'pending';
-  orderBy: string;
-  sortedBy: string;
+  /**
+   * Wildcard catch-all kept for compatibility with the legacy Pickbazar
+   * client (which accepts `Partial<T> & Record<string, unknown>` at call
+   * sites). Without this, concrete sub-types can't be passed directly to
+   * the HTTP client without a cast.
+   */
+  [key: string]: unknown;
 }
 
 export interface PaginatorInfo<T> {
@@ -224,17 +240,6 @@ export interface ProductVariation {
   variation_options?: Record<string, string | number>;
 }
 
-export interface RefundQueryOptions extends QueryOptions {
-  language: string;
-  parent: string | null;
-  type: string;
-}
-
-export interface TagQueryOptions extends QueryOptions {
-  parent: string | null;
-  type: string;
-}
-
 export interface TypeQueryOptions extends QueryOptions {
   language: string;
   name: string;
@@ -244,46 +249,6 @@ export interface TypeQueryOptions extends QueryOptions {
 export interface ShopQueryOptions extends QueryOptions {
   name: string;
   is_active: number;
-}
-
-export interface AuthorQueryOptions extends QueryOptions {
-  language: string;
-  name: string;
-  orderBy: string;
-  type?: string;
-}
-
-export interface ManufacturerQueryOptions extends QueryOptions {
-  name?: string;
-  orderBy?: string;
-  language: any;
-  type?: string;
-}
-
-export interface FaqsQueryOptions extends QueryOptions {
-  faq_title: string;
-  issued_by: string;
-  faq_type: string;
-  orderBy: string;
-  shop_id: string;
-}
-
-export interface FlashSaleQueryOptions extends QueryOptions {
-  title?: string;
-  shop_id?: string;
-}
-
-export interface FlashSaleProductsQueryOptions extends QueryOptions {
-  slug: string;
-}
-
-export interface TermsAndConditionsQueryOptions extends QueryOptions {
-  title: string;
-  issued_by: string;
-  type: string;
-  orderBy: string;
-  shop_id: string;
-  is_approved: boolean;
 }
 
 export interface CouponQueryOptions extends QueryOptions {
@@ -315,17 +280,6 @@ export interface ReviewQueryOptions extends QueryOptions {
   sortedBy?: string;
 }
 
-export interface QuestionQueryOptions extends QueryOptions {
-  product_id: string;
-  question?: string;
-}
-
-export interface MyQuestionQueryOptions extends QueryOptions {}
-
-export interface MyReportsQueryOptions extends QueryOptions {
-  language: any;
-}
-
 export interface SettingsQueryOptions extends QueryOptions {}
 
 export interface WishlistQueryOptions extends QueryOptions {}
@@ -335,8 +289,10 @@ export interface Product {
   name: string;
   slug: string;
   sku: string;
-  author: Author;
-  manufacturer: Manufacturer;
+  /** Kolshi never populates `author`; kept optional for legacy `Book` card compat. */
+  author?: Author;
+  /** Kolshi never populates `manufacturer`; kept optional for legacy compat. */
+  manufacturer?: Manufacturer;
   tags: Tag[];
   is_digital: boolean;
   is_external: boolean;
@@ -369,7 +325,8 @@ export interface Product {
   video?: {
     url: string;
   }[];
-  in_flash_sale: boolean;
+  /** Kolshi has no flash-sale feature; kept optional so cart/item legacy UI compiles. */
+  in_flash_sale?: boolean;
 }
 
 export interface RatingCount {
@@ -475,6 +432,12 @@ export interface Shop {
   lng?: number | string | null;
 }
 
+/**
+ * Kolshi never returns author / manufacturer objects — these interfaces
+ * are kept only so the legacy book card / book-details component keep
+ * type-checking the `?.slug` / `?.name` lookups they perform on
+ * `product.author` / `product.manufacturer`.
+ */
 export interface Author {
   id: string;
   name: string;
@@ -517,16 +480,6 @@ export interface Tag {
   slug: string;
 }
 
-export interface Feedback {
-  id: string;
-  user_id: string;
-  model_type: string;
-  model_id: string;
-  positive: boolean;
-  negative: boolean;
-  created_at: string;
-  updated_at: string;
-}
 export interface Maintenance {
   image: any;
   title: string;
@@ -542,37 +495,6 @@ export interface Settings {
   options: {
     [key: string]: any;
   };
-}
-
-export interface SetupIntentInfo {
-  client_secret?: string;
-  intent_id?: string;
-}
-
-export interface PaymentIntentInfo {
-  client_secret: string;
-  payment_id: string;
-  is_redirect: boolean;
-  redirect_url: string;
-  currency: string;
-  amount: string;
-}
-
-export interface Card {
-  expires: string;
-  network: string;
-  origin: string;
-  owner_name: string;
-  payment_gateway_id: number | string;
-  default_card: number;
-}
-
-export interface PaymentIntent {
-  id: number | string;
-  order_id: number | string;
-  payment_gateway: PaymentGateway;
-  tracking_number: string;
-  payment_intent_info: PaymentIntentInfo;
 }
 
 export interface Order {
@@ -596,9 +518,7 @@ export interface Order {
   updated_at: Date;
   billing_address?: Address;
   shipping_address?: Address;
-  refund: Refund;
   language?: string;
-  payment_intent?: PaymentIntent;
   order_status: string;
   payment_status: string;
   payment_gateway: string;
@@ -660,104 +580,17 @@ export interface VoteReviewInput {
   voteType: ReviewVoteType;
 }
 
-export interface CreateRefundInput {
-  order_id: string;
-  title: string;
-  description: string;
-  refund_reason_id: string;
-  images: Attachment[];
-}
-
-export interface CreateOrderPaymentInput {
-  tracking_number: string;
-  payment_gateway: string;
-}
-
-export interface CreateFeedbackInput {
-  model_id: string;
-  model_type: string;
-  positive?: boolean;
-  negative?: boolean;
-}
-
-export interface CreateQuestionInput {
-  question: string;
-  product_id: string;
-  shop_id: string;
-}
-
-export interface CreateAbuseReportInput {
-  model_id: string;
-  model_type: string;
-  message: string;
-}
-
-export interface Feedback {
-  id: string;
-  user_id: string;
-  model_type: string;
-  model_id: string;
-  positive: boolean;
-  negative: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Refund {
-  id: string;
-  title: string;
-  description: string;
-  images: Attachment[];
-  amount: number;
-  status: RefundStatus;
-  shop: Shop;
-  order: Order;
-  refund_reason: RefundReason;
-  customer: User;
-  created_at: string;
-  updated_at: string;
-}
-export interface RefundPolicy {
-  id: string;
-  title: string;
-  slug: string;
-  target: string;
-  status: string;
-  description?: string;
-  language: string;
-  shop_id?: string;
-  shop?: Shop;
-  refunds?: Refund[];
-  translated_languages: Array<string>;
-  created_at?: string;
-  updated_at?: string;
-  deleted_at?: string;
-}
-
-export interface RefundReason {
-  id: string;
-  name: string;
-  slug: string;
-  language: string;
-  created_at: string;
-  updated_at: string;
-}
-
+/**
+ * Payment gateways Kolshi actually supports. The legacy `PaymentGateway`
+ * enum listed 14 providers; Kolshi today ships Cash-on-Delivery and
+ * Stripe only (handoff Flow 5). Additional providers will be reintroduced
+ * via feature flags as the backend adds support.
+ */
 export enum PaymentGateway {
   STRIPE = 'STRIPE',
   COD = 'CASH_ON_DELIVERY',
   CASH = 'CASH',
   FULL_WALLET_PAYMENT = 'FULL_WALLET_PAYMENT',
-  PAYPAL = 'PAYPAL',
-  MOLLIE = 'MOLLIE',
-  RAZORPAY = 'RAZORPAY',
-  SSLCOMMERZ = 'SSLCOMMERZ',
-  PAYSTACK = 'PAYSTACK',
-  PAYMONGO = 'PAYMONGO',
-  XENDIT = 'XENDIT',
-  IYZICO = 'IYZICO',
-  BKASH = 'BKASH',
-  FLUTTERWAVE = 'FLUTTERWAVE',
 }
 
 export enum OrderStatus {
@@ -782,13 +615,6 @@ export enum PaymentStatus {
   AWAITING_FOR_APPROVAL = 'payment-awaiting-for-approval',
 }
 
-export enum RefundStatus {
-  APPROVED = 'Approved',
-  PENDING = 'Pending',
-  REJECTED = 'Rejected',
-  PROCESSING = 'Processing',
-}
-
 /**
  * Kolshi flattens addresses to a single `address: string` field.
  * `address.address` (nested object) is retained ONLY so legacy consumers
@@ -803,14 +629,16 @@ export interface Address {
   id: string | number;
   title: string;
   /** Kolshi: flat string. Legacy nested object kept optional for back-compat. */
-  address: string | {
-    __typename?: string;
-    country: string;
-    city: string;
-    state: string;
-    zip: string;
-    street_address: string;
-  };
+  address:
+    | string
+    | {
+        __typename?: string;
+        country: string;
+        city: string;
+        state: string;
+        zip: string;
+        street_address: string;
+      };
   type: KolshiAddressType | string;
   is_default?: boolean;
   location?: GoogleMapLocation;
@@ -859,15 +687,7 @@ export interface User {
   shops?: Shop[];
   created_at?: string;
   updated_at?: string;
-  payment_gateways?: UserPaymentGateway[];
   last_order?: Order;
-}
-
-export interface UserPaymentGateway {
-  id: number | string;
-  customer_id: string;
-  gateway_name: PaymentGateway;
-  user_id: number | string;
 }
 
 export interface UpdateUserInput extends Partial<User> {
@@ -878,14 +698,6 @@ export interface LoginUserInput {
   email: string;
   password: string;
 }
-
-export type SocialLoginInputType = {
-  provider: string;
-  access_token: string;
-};
-export type SendOtpCodeInputType = {
-  phone_number: string;
-};
 
 export interface RegisterUserInput {
   name: string;
@@ -918,16 +730,6 @@ export interface ChangePasswordUserInput {
   oldPassword: string;
   newPassword: string;
 }
-export interface UpdateEmailUserInput {
-  email: string;
-}
-
-export interface PasswordChangeResponse extends Success {}
-
-export interface EmailChangeResponse extends Success {}
-export interface VerificationEmailUserInput extends Success {
-  email: string;
-}
 
 export interface VerifyEmailInput {
   token: string;
@@ -945,21 +747,11 @@ export interface AuthResponse {
   expires_in?: number;
 }
 
-export interface OTPResponse {
-  message: string;
-  success: boolean;
-  provider: string;
-  id: string;
-  phone_number: string;
-  is_contact_exist: boolean;
-}
-
-export interface VerifyOtpInputType {
-  phone_number: string;
-  code: string;
-  otp_id: string;
-}
-
+/**
+ * OTP login is a "coming-soon" stub in Kolshi — the backend has no OTP
+ * endpoints yet. The UI form is wired behind `settings.useOtp` (defaults
+ * to `false` in Kolshi) so the template compiles but nothing dispatches.
+ */
 export interface OtpLoginInputType {
   phone_number: string;
   code: string;
@@ -968,165 +760,12 @@ export interface OtpLoginInputType {
   email?: string;
 }
 
-export interface OTPVerifyResponse {
-  success: string;
-  message: string;
-}
-
-export interface DigitalFile {
-  id: string;
-  fileable: Product;
-}
-
-export interface DownloadableFile {
-  id: string;
-  purchase_key: string;
-  digital_file_id: string;
-  customer_id: string;
-  file: DigitalFile;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CreateContactUsInput {
-  name: string;
-  email: string;
-  subject: string;
-  description: string;
-  emailTo?: string;
-  isChecked?: boolean;
-}
-
-export interface ExtendedContactUsInput extends CreateContactUsInput {
-  emailTo: string;
-}
-
-export interface CardInput {
-  number: string;
-  expiryMonth: string;
-  expiryYear: string;
-  cvv: string;
-  email?: string;
-}
-
-// enum PaymentGatewayType {
-//   STRIPE = 'Stripe',
-//   CASH_ON_DELIVERY = 'Cash on delivery',
-//   CASH = 'Cash',
-//   FULL_WALLET_PAYMENT = 'Full wallet payment',
-// }
-
-export interface CreateOrderInput {
-  customer_contact: string;
-  customer_name?: string;
-  status: string;
-  products: ConnectProductOrderPivot[];
-  amount: number;
-  sales_tax: number;
-  total: number;
-  paid_total: number;
-  payment_id?: string;
-  payment_gateway: PaymentGateway;
-  coupon_id?: string;
-  shop_id?: string;
-  customer_id?: string;
-  discount?: number;
-  use_wallet_points?: boolean;
-  delivery_fee?: number;
-  delivery_time: string;
-  card: CardInput;
-  token?: string;
-  billing_address: Address;
-  shipping_address: Address;
-  language?: string;
-}
-
-export interface PaymentIntentCollection {
-  tracking_number?: string;
-  payment_intent_info?: PaymentIntentInfo;
-  payment_gateway?: string;
-}
-
-/**
- * Kolshi returns a flat `ReviewDTO` (no nested `product`/`shop`/`user`
- * objects) plus `response` for the shop-owner reply and vote counters.
- * The shop UI still reads some of the legacy keys (`photos`,
- * `positive_feedbacks_count`, etc.) so we keep them as **optional**
- * and provide Kolshi-native twins side-by-side. The `adaptReview`
- * helper in `framework/rest/review.ts` copies Kolshi values into the
- * legacy keys so existing components keep rendering without changes.
- */
-export interface Review {
-  id: string | number;
-  name?: string;
-  rating: number;
-  comment: string;
-  created_at: string;
-  updated_at?: string;
-
-  // ── Kolshi-native ───────────────────────────────────────────────────
-  productId?: number | string;
-  productName?: string;
-  customerId?: number | string;
-  customerName?: string;
-  isVerifiedPurchase?: boolean;
-  imageUrls?: string[];
-  response?: KolshiReviewResponseDTO | null;
-  helpfulCount?: number;
-  notHelpfulCount?: number;
-  currentUserVote?: ReviewVoteType | null;
-  createdAt?: string;
-
-  // ── Legacy Pickbazar shape (kept optional for compile-compat) ───────
-  photos?: Attachment[];
-  user?: User;
-  product?: Product;
-  shop?: Shop;
-  feedbacks?: Feedback[];
-  positive_feedbacks_count?: number;
-  negative_feedbacks_count?: number;
-  my_feedback?: Feedback;
-}
-
-export interface Question {
-  id: string;
-  answer: string;
-  my_feedback: Feedback;
-  negative_feedbacks_count: number;
-  positive_feedbacks_count: number;
-  question: string;
-  created_at: string;
-  updated_at: string;
-  product: Product;
-}
-
-export interface Reports {
-  id: string;
-  message: string;
-  created_at: string;
-}
-
 export interface ConnectProductOrderPivot {
   product_id: number;
   variation_option_id?: number;
   order_quantity: number;
   unit_price: number;
   subtotal: number;
-}
-
-export interface CheckoutVerificationInput {
-  amount: number;
-  products: ConnectProductOrderPivot[];
-  billing_address?: Address;
-  shipping_address?: Address;
-}
-
-export interface VerifiedCheckoutData {
-  total_tax: number;
-  shipping_charge: number;
-  unavailable_products?: number[];
-  wallet_currency?: number;
-  wallet_amount?: number;
 }
 
 /**
@@ -1176,148 +815,53 @@ export interface ShopMapLocation {
   formattedAddress?: string;
 }
 
-export enum StoreNoticePriorityType {
-  High = 'high',
-  Medium = 'medium',
-  Low = 'low',
-}
-
-export interface StoreNotice {
-  id: string;
-  translated_languages: string[];
-  priority: StoreNoticePriorityType;
-  notice: string;
-  description?: string;
-  effective_from?: string;
-  expired_at: string;
-  type?: string;
-  is_read?: boolean;
-  shops?: Shop[];
-  users?: User[];
-  received_by?: string;
-  created_by: string;
-  expire_at: string;
+/**
+ * Kolshi's `ReviewDTO` (flat, no nested `product`/`shop`/`user`) plus
+ * `response` for the shop-owner reply and vote counters. The shop UI
+ * still reads some of the legacy keys (`photos`,
+ * `positive_feedbacks_count`, etc.) so we keep them as **optional** and
+ * provide Kolshi-native twins side-by-side. The `adaptReview` helper in
+ * `framework/rest/review.ts` copies Kolshi values into the legacy keys
+ * so existing components keep rendering without changes.
+ */
+export interface Review {
+  id: string | number;
+  name?: string;
+  rating: number;
+  comment: string;
   created_at: string;
-  updated_at: string;
-  deleted_at?: string;
-  creator?: any;
-}
+  updated_at?: string;
 
-export interface FAQS {
-  id: string;
-  faq_title: string;
-  faq_description: string;
-  slug: string;
-  faq_type: string;
-  issued_by: string;
-  language: string;
-  shop_id?: Shop;
-  user_id: User;
-  translated_languages: string[];
-  created_at: string;
-  updated_at: string;
-}
+  // ── Kolshi-native ───────────────────────────────────────────────────
+  productId?: number | string;
+  productName?: string;
+  customerId?: number | string;
+  customerName?: string;
+  isVerifiedPurchase?: boolean;
+  imageUrls?: string[];
+  response?: KolshiReviewResponseDTO | null;
+  helpfulCount?: number;
+  notHelpfulCount?: number;
+  currentUserVote?: ReviewVoteType | null;
+  createdAt?: string;
 
-export interface TermsAndConditions {
-  id: string;
-  translated_languages: string[];
-  title: string;
-  description: string;
-  shop_id?: string;
-  user_id: string;
-  created_at: string;
-  updated_at: string;
-  deleted_at?: string;
-  is_approved?: boolean;
-  issued_by?: string;
-  type?: string;
-}
-
-export interface StoreNoticeQueryOptions extends QueryOptions {
-  shop_id: string;
-  shops?: string;
-}
-
-export interface FlashSale {
-  id: string;
-  title: string;
-  slug: string;
-  description: string;
-  start_date: string;
-  end_date: string;
-  cover_image?: Attachment;
-  image?: Attachment;
-  type: string;
-  rate: string;
-  sale_status: boolean;
-  sale_builder: any;
-  language: string;
-  translated_languages: string[];
-  deleted_at?: string;
-  created_at: string;
-  updated_at: string;
-  products?: Product[];
-}
-
-export interface SingleFlashSale {
-  flash_sale: FlashSale;
-  products: ProductPaginator;
-}
-
-export enum ProductType {
-  Simple = 'simple',
-  Variable = 'variable',
-}
-
-export enum DiscountType {
-  Percentage = 'percentage',
-  FixedRate = 'fixed_rate',
+  // ── Legacy Pickbazar shape (kept optional for compile-compat) ───────
+  photos?: Attachment[];
+  user?: User;
+  product?: Product;
+  shop?: Shop;
+  positive_feedbacks_count?: number;
+  negative_feedbacks_count?: number;
 }
 
 export interface CategoryPaginator extends PaginatorInfo<Category> {}
-
-export interface RefundReasonPaginator extends PaginatorInfo<RefundReason> {}
 export interface ProductPaginator extends PaginatorInfo<Product> {}
-
-export interface CategoryPaginator extends PaginatorInfo<Category> {}
-
 export interface ShopPaginator extends PaginatorInfo<Shop> {}
-
-export interface AuthorPaginator extends PaginatorInfo<Author> {}
-
-export interface ManufacturerPaginator extends PaginatorInfo<Manufacturer> {}
-
-export interface FaqsPaginator extends PaginatorInfo<FAQS> {}
-
-export interface TermsAndConditionsPaginator
-  extends PaginatorInfo<TermsAndConditions> {}
-
 export interface CouponPaginator extends PaginatorInfo<Coupon> {}
-
-export interface StoreNoticePaginator extends PaginatorInfo<StoreNotice> {}
-
-export interface TagPaginator extends PaginatorInfo<Tag> {}
-
 export interface OrderPaginator extends PaginatorInfo<Order> {}
-
 export interface OrderStatusPaginator extends PaginatorInfo<OrderStatus> {}
-
-export interface RefundPaginator extends PaginatorInfo<Refund> {}
-
-export interface RefundPolicyPaginator extends PaginatorInfo<RefundPolicy> {}
-
 export interface ReviewPaginator extends PaginatorInfo<Review> {}
-
-export interface QuestionPaginator extends PaginatorInfo<Question> {}
-
-export interface ReportsPaginator extends PaginatorInfo<Question> {}
-
-export interface DownloadableFilePaginator
-  extends PaginatorInfo<DownloadableFile> {}
-
 export interface WishlistPaginator extends PaginatorInfo<Wishlist> {}
-
-export interface FlashSalePaginator extends PaginatorInfo<FlashSale> {}
 
 /**
  * Notification record.
@@ -1378,114 +922,6 @@ export interface KolshiNotificationCount {
   count: number;
 }
 
-export interface BecomeSellerCommission {
-  commission: number;
-  description: string;
-  image: Attachment;
-  level: string;
-  max_balance: string;
-  min_balance: number;
-  sub_level: string;
-}
-
-export interface Commission {
-  commission: number;
-  created_at?: Date;
-  description: string;
-  id?: number;
-  image?: Attachment;
-  language?: string;
-  level?: string;
-  max_balance?: string | number;
-  min_balance?: string | number;
-  sub_level?: string;
-  updated_at?: Date;
-}
-
-export interface BecomeSellerBanner {
-  description: string;
-  image: Attachment;
-  newsTickerTitle: string;
-  newsTickerURL: string;
-  title: string;
-  button1Name?: string;
-  button1Link?: string;
-  button2Name?: string;
-  button2Link?: string;
-}
-
-export interface SellingStep {
-  title: string;
-  description: string;
-  image: Attachment;
-}
-
-export interface BusinessPurpose {
-  description: string;
-  title: string;
-  icon: {
-    value: string;
-  };
-}
-
-export interface BecomeSellerDashboardShowcase {
-  title: string;
-  description: string;
-  image: Attachment;
-  buttonName?: string;
-  buttonLink?: string;
-  button2Name?: string;
-  button2Link?: string;
-}
-
-export interface BecomeSellerPageOptions {
-  banner: BecomeSellerBanner;
-  commissionDescription: string;
-  commissionTitle: string;
-  defaultCommissionDetails: string;
-  defaultCommissionRate: number;
-  faqDescription: string;
-  faqTitle: string;
-  isMultiCommissionRate: boolean;
-  faqItems: {
-    description: string;
-    title: string;
-  }[];
-  purposeDescription: string;
-  purposeItems: BusinessPurpose[];
-  purposeTitle: string;
-  sellingStepsDescription: string;
-  sellingStepsItem: SellingStep[];
-  sellingStepsTitle: string;
-  dashboard: BecomeSellerDashboardShowcase;
-  guidelineTitle: string;
-  guidelineDescription: string;
-  guidelineItems: {
-    title: string;
-    link?: string;
-  }[];
-  sellerOpportunity: BecomeSellerDashboardShowcase;
-  userStoryTitle: string;
-  userStoryDescription?: string;
-  userStories: {
-    title: string;
-    description: string;
-    link: string;
-    thumbnail?: Attachment;
-  }[];
-  contact: {
-    title: string;
-    description: string;
-  };
-}
-
-export interface BecomeSeller {
-  commission: BecomeSellerCommission[];
-  page_options: {
-    page_options: BecomeSellerPageOptions;
-  };
-}
-
 export type AlertProps = {
   message: string | null;
   variant?:
@@ -1513,12 +949,6 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   disabled?: boolean;
   children?: React.ReactNode;
   href?: string;
-}
-
-export interface ShopMaintenanceEvent {
-  shop_id: string;
-  isMaintenance: boolean;
-  isShopUnderMaintenance: boolean;
 }
 
 /* ─────────────────────────────────────────────────────────────────────

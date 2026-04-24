@@ -1,15 +1,12 @@
 import type {
   Shop,
-  ShopMapLocation,
   ShopPaginator,
   ShopQueryOptions,
-  ShopMaintenanceEvent,
 } from '@/types';
 import { useQuery, useInfiniteQuery } from 'react-query';
 import client from './client';
 import { API_ENDPOINTS } from './client/api-endpoints';
 import { mapPaginatorData } from '@/framework/utils/data-mappers';
-import { toast } from 'react-toastify';
 
 export function useShops(options?: Partial<ShopQueryOptions>) {
   const {
@@ -82,35 +79,3 @@ export function useShopSearch(
     },
   );
 }
-
-/* ─────────────────────────────────────────────────────────────────────
- * Coming-Soon / Deleted hooks — retained as compiling stubs so legacy
- * callers in map / maintenance UIs compile until they are removed in
- * S6. Each throws a toast the moment a user triggers it.
- * ──────────────────────────────────────────────────────────────────── */
-
-export const useSearchNearShops = () => {
-  return {
-    mutate: () => toast.info('Near-by shops are not supported in Kolshi.'),
-    mutateAsync: async () => undefined,
-    isLoading: false,
-    data: undefined,
-    error: undefined,
-  } as any;
-};
-
-export const useGetSearchNearShops = (_input: ShopMapLocation) => {
-  return {
-    data: [] as Shop[],
-    isLoading: false,
-    error: undefined,
-  };
-};
-
-export const useShopMaintenanceEvent = () => {
-  return {
-    createShopMaintenanceEventRequest: (_input: ShopMaintenanceEvent) =>
-      toast.info('Shop maintenance toggle is not supported in Kolshi.'),
-    isLoading: false,
-  };
-};

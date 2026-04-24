@@ -3,8 +3,6 @@ import { useMutation, useQuery } from 'react-query';
 import client from './client';
 import { API_ENDPOINTS } from './client/api-endpoints';
 import { useState } from 'react';
-import { FileWithPath } from 'react-dropzone';
-import { getPreviewImage } from '@/lib/get-preview-image';
 import { useAtom } from 'jotai';
 import { couponAtom } from '@/store/checkout';
 import { toast } from 'react-toastify';
@@ -39,49 +37,6 @@ export function useSettings() {
     isLoading,
     error,
     isFetching,
-  };
-}
-
-/**
- * Kolshi has no multipart upload endpoint. `useUploads` stays as a
- * surface for legacy callers but now toasts "coming soon" and returns
- * the already-displayed preview list untouched. New uploaders must
- * use `useCloudinaryUpload` from `framework/rest/utils/cloudinary.ts`.
- */
-export const useUploads = ({ defaultFiles }: any) => {
-  const { t } = useTranslation('common');
-  const [files] = useState<FileWithPath[]>(getPreviewImage(defaultFiles));
-
-  const { mutate: upload, isLoading } = useMutation(client.settings.upload, {
-    onError: () => {
-      toast.info(`${t('text-upload-migrated-to-cloudinary')}`);
-    },
-  });
-
-  function handleSubmit(data: File[]) {
-    upload(data);
-  }
-
-  return { mutate: handleSubmit, isLoading, files };
-};
-
-export function useSubscription() {
-  const { t } = useTranslation('common');
-  let [isSubscribed, setIsSubscribed] = useState(false);
-
-  const subscription = useMutation(client.users.subscribe, {
-    onSuccess: () => {
-      setIsSubscribed(true);
-    },
-    onError: () => {
-      setIsSubscribed(false);
-      toast.info(`${t('text-newsletter-coming-soon')}`);
-    },
-  });
-
-  return {
-    ...subscription,
-    isSubscribed,
   };
 }
 

@@ -1,6 +1,4 @@
-import LocationBasedShopForm from '@/components/form/location-based-shop-form';
 import { CloseIcon } from '@/components/icons/close-icon';
-import { MapPin } from '@/components/icons/map-pin';
 import { SearchIcon } from '@/components/icons/search-icon';
 import GroupsDropdownMenu from '@/components/layouts/menu/groups-menu';
 import StaticMenu from '@/components/layouts/menu/static-menu';
@@ -9,7 +7,6 @@ import Button from '@/components/ui/button';
 import CountdownTimer from '@/components/ui/countdown-timer';
 import LanguageSwitcher from '@/components/ui/language-switcher';
 import Logo from '@/components/ui/logo';
-import { Routes } from '@/config/routes';
 import { useSettings } from '@/framework/settings';
 import { useHeaderSearch } from '@/layouts/headers/header-search-atom';
 import {
@@ -31,13 +28,11 @@ import { motion } from 'framer-motion';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'next-i18next';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useWindowSize } from 'react-use';
 import { useShop } from '@/framework/shop';
 import { useRouter } from 'next/router';
 import { twMerge } from 'tailwind-merge';
-import { useShopMaintenanceEvent } from '@/framework/shop';
 const Search = dynamic(() => import('@/components/ui/search/search'));
 const AuthorizedMenu = dynamic(() => import('./menu/authorized-menu'), {
   ssr: false,
@@ -61,13 +56,11 @@ const Header = ({ layout }: { layout?: string }) => {
     slug: slug as string,
     enabled: Boolean(slug),
   });
-  const { createShopMaintenanceEventRequest } = useShopMaintenanceEvent();
   const [_, setDrawerView] = useAtom(drawerAtom);
   const [displayMobileHeaderSearch, setDisplayMobileHeaderSearch] = useAtom(
     displayMobileHeaderSearchAtom,
   );
   const [isAuthorize] = useAtom(authorizationAtom);
-  const [openDropdown, setOpenDropdown] = useState(false);
   const isHomePage = useIsHomePage();
   const siteHeaderRef = React.useRef(null);
   useActiveScroll(siteHeaderRef);
@@ -79,7 +72,6 @@ const Header = ({ layout }: { layout?: string }) => {
   const handleSidebar = useCallback((view: string) => {
     return setDrawerView({ display: true, view });
   }, []);
-  const closeLocation = () => setOpenDropdown(false);
   const { settings } = useSettings();
   const [underMaintenanceIsComing] = useAtom(checkIsMaintenanceModeComing);
   const [shopUnderMaintenanceIsComing] = useAtom(
@@ -142,28 +134,12 @@ const Header = ({ layout }: { layout?: string }) => {
                 new Date(shopData?.settings?.shopMaintenance?.start as string)
               }
               className="text-blue-600 [&>p]:bg-blue-200 [&>p]:p-2 [&>p]:text-xs [&>p]:text-blue-600"
-              onComplete={() => {
-                setShopUnderMaintenanceStart(true);
-                createShopMaintenanceEventRequest({
-                  shop_id: shopData?.id,
-                  isMaintenance: true,
-                  isShopUnderMaintenance: Boolean(
-                    shopData?.settings?.isShopUnderMaintenance,
-                  ),
-                });
-              }}
+              onComplete={() => setShopUnderMaintenanceStart(true)}
             />
           </Alert>
         ) : (
           ''
         )}
-        <div
-          className={cn(
-            'fixed inset-0 -z-10 h-[100vh] w-full bg-black/50',
-            openDropdown === true ? '' : 'hidden',
-          )}
-          onClick={closeLocation}
-        ></div>
         <div>
           <div
             className={cn(
@@ -171,7 +147,6 @@ const Header = ({ layout }: { layout?: string }) => {
               {
                 'lg:absolute lg:border-0 lg:bg-transparent lg:shadow-none':
                   isFlattenHeader,
-                'lg:!bg-light': openDropdown,
               },
             )}
           >
@@ -251,36 +226,11 @@ const Header = ({ layout }: { layout?: string }) => {
                     <SearchIcon className="h-4 w-4" />
                   </Button>
                 ) : null}
-                {settings?.useGoogleMap && (
-                  <div
-                    className={cn(
-                      'relative flex justify-center lg:w-auto lg:border-none',
-                      isFlattenHeader || (isHomePage && 'flex'),
-                      // isFlattenHeader || (isHomePage && 'lg:hidden 2xl:flex')
-                      // {
-                      //   'lg:hidden xl:flex': !isFlattenHeader,
-                      //   'lg:flex': !isHomePage,
-                      // }
-                    )}
-                  >
-                    <Button
-                      variant="custom"
-                      className="!flex h-[38px] w-[38px] max-w-full items-center gap-2 rounded-full border border-border-200 bg-light !p-1 text-sm !font-normal focus:!shadow-none focus:!ring-0 md:text-base"
-                      onClick={() => setOpenDropdown(!openDropdown)}
-                    >
-                      <span className="flex shrink-0 grow-0 basis-auto items-center gap-1 text-base text-gray-700">
-                        <MapPin className="h-5 w-5 " />
-                      </span>
-                    </Button>
-                    <LocationBasedShopForm
-                      className={cn(
-                        'fixed inset-x-0 top-[60px] mx-auto bg-white lg:top-[82px]',
-                        openDropdown === true ? '' : 'hidden',
-                      )}
-                      closeLocation={closeLocation}
-                    />
-                  </div>
-                )}
+                {/*
+                 * Kolshi S6 — near-by-shops map dropdown is removed. Kolshi has
+                 * no Google Maps / geo-search integration (decision log —
+                 * shop search is slug-based only).
+                 */}
 
                 <HeaderNotification
                   isAuthorize={isAuthorize}
@@ -293,68 +243,17 @@ const Header = ({ layout }: { layout?: string }) => {
                   </div>
                 ) : null}
 
+                {/*
+                 * Kolshi S6 — the "Become a seller" CTA is removed. Kolshi has
+                 * no public seller-onboarding landing page (decision log —
+                 * Become-seller is an operator-managed workflow today).
+                 */}
                 <div className="hidden lg:inline-flex">
                   {isAuthorize ? <AuthorizedMenu /> : <JoinButton />}
                 </div>
-                <Link
-                  href={Routes.becomeSeller}
-                  className="hidden h-9 shrink-0 items-center justify-center rounded border border-transparent bg-accent px-3 py-0 text-sm font-semibold leading-none text-light outline-none transition duration-300 ease-in-out hover:bg-accent-hover focus:shadow focus:outline-none focus:ring-1 focus:ring-accent-700 sm:inline-flex"
-                >
-                  {t('text-become-seller')}
-                </Link>
               </div>
             </div>
           </div>
-          {/* <div
-          className={cn(
-            'w-full border-b border-t border-border-200 bg-light shadow-sm 2xl:border-t-0',
-            isHomePage ? 'hidden lg:block' : 'hidden'
-          )}
-        >
-          {settings?.useGoogleMap && (
-            <div
-              className={cn(
-                'relative flex w-full justify-center border-t before:absolute before:inset-y-0 before:my-auto before:h-8 before:w-[1px] lg:w-auto lg:border-none lg:before:w-0 lg:before:bg-[#E5E7EB] 2xl:ltr:pl-8 2xl:rtl:pr-8',
-                isFlattenHeader ? 'hidden' : 'lg:flex 2xl:hidden'
-              )}
-            >
-              <Button
-                variant="custom"
-                className="flex items-center gap-2 focus:!shadow-none focus:!ring-0"
-                onClick={() => setOpenDropdown(!openDropdown)}
-              >
-                <span className="flex items-center gap-1 text-base text-accent">
-                  <MapPin className="w-4 h-4 " />
-                  <span className="hidden md:block">Find Locations :</span>
-                </span>
-                {getLocation ? (
-                  <span className="flex items-center gap-2 pl-1">
-                    {' '}
-                    {getLocation}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2 pl-1">
-                    {' '}
-                    Enter your address
-                  </span>
-                )}
-                <ArrowDownIcon
-                  className={cn(
-                    'mt-1 h-2.5 w-2.5 text-accent transition-all',
-                    openDropdown ? 'rotate-180' : ''
-                  )}
-                />
-              </Button>
-              <LocationBasedShopForm
-                className={cn(
-                  'fixed inset-x-0 top-14 mx-auto bg-white md:top-[109px] lg:top-[128px]',
-                  openDropdown === true ? '' : 'hidden'
-                )}
-                closeLocation={closeLocation}
-              />
-            </div>
-          )}
-        </div> */}
         </div>
       </header>
     </>

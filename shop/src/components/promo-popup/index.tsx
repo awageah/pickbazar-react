@@ -1,4 +1,4 @@
-import SubscriptionWidget from '@/components/settings/subscribe-to-newsletter';
+import Button from '@/components/ui/button';
 import Checkbox from '@/components/ui/forms/checkbox/checkbox';
 import Spinner from '@/components/ui/loaders/spinner/spinner';
 import Modal from '@/components/ui/modal/modal';
@@ -9,10 +9,22 @@ import {
 import { NEWSLETTER_POPUP_MODAL_KEY } from '@/lib/constants';
 import classNames from 'classnames';
 import Cookies from 'js-cookie';
+import { useTranslation } from 'next-i18next';
 import Image from 'next/image';
 import { useCallback, useState } from 'react';
 
+/**
+ * Kolshi K.5 — promotional popup.
+ *
+ * Historically this modal wrapped a newsletter opt-in form. Kolshi has
+ * no newsletter/subscription backend (decision log N.3 → Delete), so
+ * the form is removed and the popup now serves as a simple promotional
+ * announcement with an optional "don't show again" preference. The
+ * cookie key name is preserved to keep pre-existing dismissal state
+ * consistent for returning users.
+ */
 const PromoPopup = () => {
+  const { t } = useTranslation('common');
   const { closeModal } = useModalAction();
   const [notShowAgain, setNotShowAgain] = useState(false);
   const {
@@ -21,17 +33,12 @@ const PromoPopup = () => {
   } = useModalState();
 
   const closeModalAction = useCallback(() => {
-    if (Boolean(notShowAgain)) {
-      Cookies.set(NEWSLETTER_POPUP_MODAL_KEY, 'true', {
-        expires: Number(popupData?.popUpNotShow?.popUpExpiredIn),
-      });
-    } else {
-      Cookies.set(NEWSLETTER_POPUP_MODAL_KEY, 'true', {
-        expires: Number(popupData?.popUpExpiredIn),
-      });
-    }
+    const expiresInDays = notShowAgain
+      ? Number(popupData?.popUpNotShow?.popUpExpiredIn) || 30
+      : Number(popupData?.popUpExpiredIn) || 1;
+    Cookies.set(NEWSLETTER_POPUP_MODAL_KEY, 'true', { expires: expiresInDays });
     closeModal();
-  }, [notShowAgain]);
+  }, [notShowAgain, popupData, closeModal]);
 
   return (
     <Modal
@@ -49,22 +56,20 @@ const PromoPopup = () => {
             <div className="md:col-span-1 order-2 md:order-1 col-span-full p-6 md:p-12">
               {popupData?.title ? (
                 <h2 className="text-3xl font-bold mb-4">{popupData?.title}</h2>
-              ) : (
-                ''
-              )}
+              ) : null}
 
               {popupData?.description ? (
-                <p className="mb-10 text-muted-black text-lg leading-[150%">
+                <p className="mb-10 text-muted-black text-lg leading-[150%]">
                   {popupData?.description}
                 </p>
-              ) : (
-                ''
-              )}
+              ) : null}
 
-              <SubscriptionWidget />
+              <Button onClick={closeModalAction} className="h-11 w-full sm:h-12">
+                {t('text-got-it') ?? 'Got it'}
+              </Button>
 
               {popupData?.isPopUpNotShow ? (
-                <div className="mt-12">
+                <div className="mt-8">
                   <Checkbox
                     name="not_show_again"
                     label={popupData?.popUpNotShow?.title}
@@ -72,15 +77,9 @@ const PromoPopup = () => {
                     checked={notShowAgain}
                   />
                 </div>
-              ) : (
-                ''
-              )}
+              ) : null}
             </div>
 
-            {/* Kolshi K.5 — image column is conditional. Kolshi admins may
-                enable the promo popup without uploading an image (the image
-                asset is an optional platform setting), so rendering only
-                happens when a URL is present to avoid a Next/Image error. */}
             {popupData?.image?.original ? (
               <div
                 className={classNames(

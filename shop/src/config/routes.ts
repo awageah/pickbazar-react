@@ -1,3 +1,19 @@
+/**
+ * Kolshi route catalogue.
+ *
+ * Only routes backed by a real page and at least one live caller remain
+ * in this file. The S6 cleanup removed the long trail of "dead" stubs
+ * ('#') for authors / manufacturers / flash-sales / refunds / downloads
+ * / newsletter / become-seller etc. — their pages and consumer links
+ * are deleted, so the stubs were no longer load-bearing.
+ *
+ * Two exceptions are kept as `'#'` on purpose:
+ *   - `author(slug)` and `manufacturer(slug)` remain because the Book /
+ *     Radon product cards still try to link the `product.author` /
+ *     `product.manufacturer` when they are present. Kolshi never
+ *     populates those fields, so the guarded branches don't render,
+ *     but the functions must still exist for TypeScript.
+ */
 export const Routes = {
   home: '/',
   checkout: '/checkout',
@@ -14,53 +30,20 @@ export const Routes = {
   orderReceived: '/orders/order-received',
   /** Kolshi H.2 — public tracking page. */
   trackOrder: '/track-order',
-  help: '/help',
   logout: '/logout',
-  /**
-   * Kolshi K.1 — the public `/offers` page has been removed. Kolshi
-   * only exposes coupon listing as a `super_admin` admin-panel
-   * endpoint; customers discover coupons at checkout through the
-   * "Use best offer" flow (see `settings.ts#useBestMatchCoupon`).
-   * Kept as `'#'` so stray legacy references compile but navigate
-   * to nothing.
-   */
-  coupons: '#',
   products: '/products',
   product: (slug: string) => `/products/${encodeURIComponent(slug)}`,
   privacy: '/privacy',
   terms: '/terms',
-  refundPolicies: '/refund-policies',
-  customerRefundPolicies: '/customer-refund-policies',
-  vendorRefundPolicies: '/vendor-refund-policies',
   contactUs: '/contact',
   shops: '/shops',
   shop: (slug: string) => `/shops/${encodeURIComponent(slug)}`,
-  nearByShop: ({ lat, lng }: { lat: string; lng: string }) =>
-    `/shops/search?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(
-      lng,
-    )}`,
   search: '/search',
   wishlists: '/wishlists',
   notifyLogs: '/notification',
   notifyLogsSingle: (id: string) => `/notification/${encodeURIComponent(id)}`,
-  becomeSeller: '/become-seller',
-  /* ─────────────────────────────────────────────────────────────────────
-   * Deprecated / not-implemented routes retained to avoid breaking legacy
-   * components still referenced elsewhere in the tree. See the feature
-   * decision log for verdicts — these paths are expected to resolve to
-   * 404 at runtime because the backing pages were removed.
-   * ──────────────────────────────────────────────────────────────────── */
-  refunds: '#',
-  cards: '#',
-  downloads: '#',
-  authors: '#',
+
+  /* ─── Legacy / Kolshi-unsupported (keep for compile, never rendered) ── */
   author: (_slug: string) => '#',
-  manufacturers: '#',
   manufacturer: (_slug: string) => '#',
-  questions: '#',
-  reports: '#',
-  flashSale: '#',
-  flashSaleSingle: (_slug: string) => '#',
-  checkoutDigital: '/checkout',
-  checkoutGuest: '/checkout',
 };

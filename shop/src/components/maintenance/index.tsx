@@ -1,10 +1,8 @@
-import { BellIcon } from '@/components/icons/bell-icon';
 import { CloseIconNew } from '@/components/icons/close-icon';
 import { LangIcon } from '@/components/icons/lang-icon';
 import { LongArrowIcon } from '@/components/icons/long-arrow-icon';
 import Button from '@/components/ui/button';
 import Logo from '@/components/ui/logo';
-import { useModalAction } from '@/components/ui/modal/modal.context';
 import { isMultiLangEnable } from '@/lib/constants';
 import { languageMenu } from '@/lib/locals';
 import { drawerAtom } from '@/store/drawer-atom';
@@ -19,10 +17,16 @@ import { useRouter } from 'next/router';
 import { useState } from 'react';
 import { twMerge } from 'tailwind-merge';
 
+/**
+ * Kolshi S6 — maintenance splash.
+ *
+ * The legacy "Notify me" button opened a newsletter modal that no
+ * longer exists (decision log N.3 → Delete). We keep a single CTA
+ * (`buttonTitleTwo` → "more info") which triggers the side-drawer
+ * with the about/contact blocks.
+ */
 interface MaintenanceModeProps {
   data: {
-    newsLetterTitle?: string;
-    newsLetterDescription?: string;
     aboutUsTitle?: string;
     aboutUsDescription?: string;
     contactUsTitle?: string;
@@ -31,7 +35,6 @@ interface MaintenanceModeProps {
     };
     title: string;
     description: string;
-    buttonTitleOne?: string;
     buttonTitleTwo?: string;
     isOverlayColor?: string;
     overlayColorRange?: string;
@@ -49,7 +52,6 @@ const MaintenanceMode = ({
   className,
   showLogo = true,
 }: MaintenanceModeProps) => {
-  const { openModal } = useModalAction();
   const [_, setDrawerView] = useAtom(drawerAtom);
   const { t } = useTranslation('common');
   const [langOnClick, setLangOnClick] = useState<boolean>(false);
@@ -64,13 +66,6 @@ const MaintenanceMode = ({
     ? filterItem?.find((o) => o?.value === locale)!
     : filterItem[2];
   const [selectedItem, setSelectedItem] = useState(currentSelectedItem?.value);
-
-  const openNewsLetterModal = () => {
-    openModal('NEWSLETTER_MODAL', {
-      title: data?.newsLetterTitle as string,
-      description: data?.newsLetterDescription as string,
-    });
-  };
 
   const handleItemClick = (item: string) => {
     Cookies.set('NEXT_LOCALE', item, { expires: 365 });
@@ -127,38 +122,19 @@ const MaintenanceMode = ({
               ''
             )}
             {renderCountDown}
-            {data?.buttonTitleOne || data?.buttonTitleTwo ? (
+            {data?.buttonTitleTwo ? (
               <div className="mt-8 flex flex-wrap items-center justify-center gap-5 lg:mt-16">
-                {data?.buttonTitleOne ? (
-                  <Button
-                    onClick={openNewsLetterModal}
-                    className="notify-button group h-auto rounded-full py-2.5 text-sm md:text-base"
-                  >
-                    {data?.buttonTitleOne}
-                    <span className="notify-button-icon flex h-9 w-9 rounded-full bg-accent-hover transition-colors duration-500 group-hover:bg-accent ltr:ml-3 rtl:mr-3">
-                      <BellIcon className="m-auto" />
-                    </span>
-                  </Button>
-                ) : (
-                  ''
-                )}
-                {data?.buttonTitleTwo ? (
-                  <Button
-                    onClick={() => handleSidebar('MAINTENANCE_MORE_INFO')}
-                    className="info-button group h-auto rounded-full bg-white py-2.5 text-sm text-slate-700 hover:bg-slate-300 hover:text-slate-600 md:text-base"
-                  >
-                    {data?.buttonTitleTwo}
-                    <span className="info-button-icon flex h-9 w-9 rounded-full bg-slate-300 text-black duration-500 group-hover:bg-slate-400 group-hover:text-white ltr:ml-3 rtl:mr-3 rtl:rotate-180 rtl:transform">
-                      <LongArrowIcon className="m-auto text-3xl" />
-                    </span>
-                  </Button>
-                ) : (
-                  ''
-                )}
+                <Button
+                  onClick={() => handleSidebar('MAINTENANCE_MORE_INFO')}
+                  className="info-button group h-auto rounded-full bg-white py-2.5 text-sm text-slate-700 hover:bg-slate-300 hover:text-slate-600 md:text-base"
+                >
+                  {data?.buttonTitleTwo}
+                  <span className="info-button-icon flex h-9 w-9 rounded-full bg-slate-300 text-black duration-500 group-hover:bg-slate-400 group-hover:text-white ltr:ml-3 rtl:mr-3 rtl:rotate-180 rtl:transform">
+                    <LongArrowIcon className="m-auto text-3xl" />
+                  </span>
+                </Button>
               </div>
-            ) : (
-              ''
-            )}
+            ) : null}
           </div>
         </div>
       </div>

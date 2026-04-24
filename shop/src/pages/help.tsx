@@ -1,24 +1,28 @@
 import Seo from '@/components/seo/seo';
-import NotFound from '@/components/ui/not-found';
-import { useFAQs } from '@/framework/faqs';
 import { useTranslation } from 'next-i18next';
-import { getStaticProps } from '@/framework/faq-ssr';
-export { getStaticProps };
-import { LIMIT_HUNDRED } from '@/lib/constants';
+import type { GetStaticProps } from 'next';
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { getLayoutWithFooter } from '@/components/layouts/layout-with-footer';
 import PageBanner from '@/components/banners/page-banner';
-import FAQ from '@/components/faq/faq';
-import ErrorMessage from '@/components/ui/error-message';
+import Accordion from '@/components/ui/accordion';
+import { faq } from '@/framework/static/faq';
 
+/**
+ * Kolshi S6 — help / FAQ page.
+ *
+ * Kolshi has no FAQ API (decision log L.1 Delete). The page now renders
+ * a hand-maintained list from `framework/static/faq.ts`, translated via
+ * the `faq` i18n namespace so content can be localised without a code
+ * change. To add an FAQ, edit `framework/static/faq.ts` and the matching
+ * locale JSON.
+ */
 export default function HelpPage() {
   const { t } = useTranslation();
-  const { faqs, isLoading, error } = useFAQs({
-    faq_type: 'global',
-    issued_by: 'Super Admin',
-    limit: LIMIT_HUNDRED,
-  });
 
-  if (error) return <ErrorMessage message={error.message} />;
+  const items = faq.map(({ title, content }) => ({
+    title,
+    content,
+  }));
 
   return (
     <>
@@ -29,13 +33,7 @@ export default function HelpPage() {
           breadcrumbTitle={t('text-home')}
         />
         <div className="w-full max-w-screen-lg px-4 py-10 mx-auto">
-          {!isLoading && !faqs.length ? (
-            <div className="min-h-full p-5 md:p-8 lg:p-12 2xl:p-16">
-              <NotFound text="text-no-faq" className="h-96" />
-            </div>
-          ) : (
-            <FAQ data={faqs as any} isLoading={isLoading} />
-          )}
+          <Accordion items={items} translatorNS="faq" />
         </div>
       </section>
     </>
@@ -43,3 +41,11 @@ export default function HelpPage() {
 }
 
 HelpPage.getLayout = getLayoutWithFooter;
+
+export const getStaticProps: GetStaticProps = async ({ locale }) => {
+  return {
+    props: {
+      ...(await serverSideTranslations(locale!, ['common', 'faq'])),
+    },
+  };
+};

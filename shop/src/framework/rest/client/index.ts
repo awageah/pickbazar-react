@@ -1,132 +1,79 @@
 import type {
-  Attachment,
-  Author,
-  AuthorPaginator,
-  AuthorQueryOptions,
   AuthResponse,
+  BestSellingProductQueryOptions,
   Category,
   CategoryPaginator,
   CategoryQueryOptions,
-  ChangePasswordUserInput,
-  CheckoutVerificationInput,
-  CreateAbuseReportInput,
-  CreateContactUsInput,
-  CreateFeedbackInput,
-  CreateOrderInput,
-  CreateQuestionInput,
-  CreateRefundInput,
   CreateReviewInput,
-  DownloadableFilePaginator,
-  Feedback,
   ForgotPasswordUserInput,
+  GetParams,
   LoginUserInput,
-  Manufacturer,
-  ManufacturerPaginator,
-  ManufacturerQueryOptions,
-  MyQuestionQueryOptions,
-  MyReportsQueryOptions,
+  NotifyLogs,
+  NotifyLogsQueryOptions,
   Order,
   OrderPaginator,
   OrderQueryOptions,
-  OrderStatusPaginator,
-  OtpLoginInputType,
-  OTPResponse,
-  PasswordChangeResponse,
   PopularProductQueryOptions,
   Product,
   ProductPaginator,
   ProductQueryOptions,
-  QueryOptions,
-  QuestionPaginator,
-  QuestionQueryOptions,
-  Refund,
-  RefundPaginator,
   RegisterUserInput,
   ResetPasswordUserInput,
   Review,
-  ReviewPaginator,
   ReviewQueryOptions,
-  ReviewResponse,
-  SendOtpCodeInputType,
   Settings,
+  SettingsQueryOptions,
   Shop,
   ShopPaginator,
   ShopQueryOptions,
-  SocialLoginInputType,
-  TagPaginator,
-  TagQueryOptions,
   Type,
   TypeQueryOptions,
   UpdateReviewInput,
-  UpdateUserInput,
   User,
-  VerifiedCheckoutData,
-  VerifyCouponInputType,
-  VerifyCouponResponse,
   VerifyForgotPasswordUserInput,
-  VerifyOtpInputType,
   Wishlist,
-  WishlistPaginator,
   WishlistQueryOptions,
-  GetParams,
-  SettingsQueryOptions,
-  CreateOrderPaymentInput,
-  SetupIntentInfo,
-  PaymentIntentCollection,
-  Card,
-  BestSellingProductQueryOptions,
-  UpdateEmailUserInput,
-  EmailChangeResponse,
-  VerificationEmailUserInput,
-  StoreNoticeQueryOptions,
-  StoreNoticePaginator,
-  StoreNotice,
-  FAQS,
-  FaqsQueryOptions,
-  FaqsPaginator,
-  ShopMapLocation,
-  RefundQueryOptions,
-  RefundReasonPaginator,
-  TermsAndConditionsQueryOptions,
-  TermsAndConditionsPaginator,
-  FlashSaleQueryOptions,
-  FlashSalePaginator,
-  FlashSale,
-  RefundPolicyPaginator,
-  RefundPolicyQueryOptions,
-  SingleFlashSale,
-  FlashSaleProductsQueryOptions,
-  NotifyLogsQueryOptions,
-  NotifyLogsPaginator,
-  NotifyLogs,
-  BecomeSeller,
-  ShopMaintenanceEvent,
 } from '@/types';
 import { API_ENDPOINTS } from './api-endpoints';
 import { HttpClient } from './http-client';
-//@ts-ignore
-import { OTPVerifyResponse } from '@/types';
 import type {
-  ProductImage,
-  ProductVariation,
-  ReviewSummary,
-  KolshiCart,
   AddToCartInput,
-  UpdateCartItemInput,
-  KolshiValidateCouponInput,
-  KolshiValidateCouponResponse,
   KolshiBestMatchCouponInput,
-  KolshiTrackingResponse,
+  KolshiCart,
   KolshiCreateOrderInput,
+  KolshiNotificationCount,
   KolshiOrderHistoryEntry,
   KolshiOrderQueryOptions,
   KolshiReviewResponseDTO,
-  KolshiNotificationCount,
-  ReviewVoteType,
+  KolshiTrackingResponse,
+  KolshiValidateCouponInput,
+  KolshiValidateCouponResponse,
+  ProductImage,
+  ProductVariation,
+  ReviewSummary,
+  UpdateCartItemInput,
   VoteReviewInput,
 } from '@/types';
 import { resolveSortBy } from '../utils/sort-mapper';
 
+/**
+ * Kolshi REST client.
+ *
+ * Shape rationale:
+ *   - Modules are grouped by backend resource (products / reviews /
+ *     shops / …) so the call-sites in `framework/rest/*` read like
+ *     REST paths.
+ *   - Every method documents the exact backend route it resolves to;
+ *     shape adapters (Pickbazar ⇄ Kolshi) live next to the call so
+ *     the hook layer stays dumb.
+ *   - Features deleted in S6 (authors, manufacturers, flash-sales,
+ *     refunds, store notices, faqs, terms, become-seller, newsletter,
+ *     abuse-reports, product Q&A, saved cards, payment intents,
+ *     guest checkout, multipart uploads, social/OTP auth) no longer
+ *     have entries here — consumers have been removed or rewired to
+ *     Coming-Soon placeholders. Re-add a resource when the backend
+ *     adds the endpoint AND a UI surface consumes it.
+ */
 class Client {
   products = {
     /**
@@ -138,7 +85,6 @@ class Client {
      * the remaining legacy keys here so they never reach the wire.
      */
     all: ({
-      // legacy aliases — must never be forwarded to the backend.
       type: _type,
       author: _author,
       manufacturer: _manufacturer,
@@ -178,7 +124,7 @@ class Client {
         isActive: true,
       }),
 
-    /** `GET /products?sortBy=popular` (alias of popular — Kolshi has no best-selling endpoint). */
+    /** `GET /products?sortBy=popular` (alias — Kolshi has no dedicated best-selling endpoint). */
     bestSelling: ({
       limit = 10,
       type_slug: _typeSlug,
@@ -254,7 +200,7 @@ class Client {
         params,
       ),
 
-    /** `DELETE /products/recently-viewed` — Kolshi's "clear history" hook. */
+    /** `DELETE /products/recently-viewed` — "clear history" from the PDP. */
     clearRecentlyViewed: () =>
       HttpClient.delete<void>(API_ENDPOINTS.PRODUCTS_RECENTLY_VIEWED),
 
@@ -264,56 +210,8 @@ class Client {
         `${API_ENDPOINTS.PRODUCTS}/${id}/track-view`,
         {},
       ),
+  };
 
-    // ─── Legacy / Coming-Soon stubs (feature Delete in S6) ──────────────
-    questions: ({ question, ...params }: QuestionQueryOptions) =>
-      HttpClient.get<QuestionPaginator>(API_ENDPOINTS.PRODUCTS_QUESTIONS, {
-        searchJoin: 'and',
-        ...params,
-        search: HttpClient.formatSearchParams({
-          question,
-        }),
-      }),
-    createFeedback: (_input: CreateFeedbackInput) =>
-      Promise.reject<Feedback>(
-        new Error('Feedback is not supported in Kolshi.'),
-      ),
-    createAbuseReport: (_input: CreateAbuseReportInput) =>
-      Promise.reject<Review>(
-        new Error('Abuse reporting is not supported in Kolshi.'),
-      ),
-    createQuestion: (_input: CreateQuestionInput) =>
-      Promise.reject<Review>(
-        new Error('Questions are not supported in Kolshi.'),
-      ),
-    getProductsByFlashSale: ({ slug, language }: GetParams) => {
-      return HttpClient.get<Product>(
-        `${API_ENDPOINTS.PRODUCTS_BY_FLASH_SALE}`,
-        {
-          language,
-          slug,
-        },
-      );
-    },
-  };
-  myQuestions = {
-    all: (params: MyQuestionQueryOptions) =>
-      HttpClient.get<QuestionPaginator>(API_ENDPOINTS.MY_QUESTIONS, {
-        with: 'user',
-        orderBy: 'created_at',
-        sortedBy: 'desc',
-        ...params,
-      }),
-  };
-  myReports = {
-    all: (params: MyReportsQueryOptions) =>
-      HttpClient.get<QuestionPaginator>(API_ENDPOINTS.MY_REPORTS, {
-        with: 'user',
-        orderBy: 'created_at',
-        sortedBy: 'desc',
-        ...params,
-      }),
-  };
   /* ───────────────────────────────────────────────────────────────────
    * Reviews — Kolshi I.1
    *
@@ -398,9 +296,11 @@ class Client {
 
     /** `GET /reviews/products/{productId}/rating`. */
     rating: (productId: string | number) =>
-      HttpClient.get<{ productId: number; averageRating: number; totalReviews: number }>(
-        `${API_ENDPOINTS.PRODUCT_REVIEWS_RATING}/${productId}/rating`,
-      ),
+      HttpClient.get<{
+        productId: number;
+        averageRating: number;
+        totalReviews: number;
+      }>(`${API_ENDPOINTS.PRODUCT_REVIEWS_RATING}/${productId}/rating`),
 
     /** `POST /reviews/{reviewId}/vote`. */
     vote: ({ reviewId, voteType }: VoteReviewInput) =>
@@ -421,6 +321,7 @@ class Client {
         `${API_ENDPOINTS.REVIEW_RESPONSE}/${reviewId}/response`,
       ),
   };
+
   categories = {
     /**
      * `GET /categories` (paginated). Kolshi doesn't scope categories by
@@ -481,24 +382,16 @@ class Client {
         params,
       ),
   };
-  tags = {
-    all: ({ type, ...params }: Partial<TagQueryOptions>) =>
-      HttpClient.get<TagPaginator>(API_ENDPOINTS.TAGS, {
-        searchJoin: 'and',
-        ...params,
-        ...(type && { search: HttpClient.formatSearchParams({ type }) }),
-      }),
-  };
+
   /**
    * Kolshi deleted the template's `/types` catalogue (decision log E.5).
-   * The shop's homepage driver, header/menu, and several SSR prefetches
+   * The shop's homepage driver, header/menu and several SSR prefetches
    * still read `types.all()` / `types.get()` to pick a layout and seed
    * the banner. Instead of rewriting all of them at once, we return a
    * single synthetic "Kolshi" type with the classic layout so every
    * existing consumer keeps rendering. The actual `/types` endpoint is
-   * never called.
-   *
-   * S6 deletes this stub alongside the last `types` caller.
+   * never called — when all callers migrate to reading layout metadata
+   * from `/settings`, this shim can be deleted alongside them.
    */
   types = {
     all: async (_params?: Partial<TypeQueryOptions>): Promise<Type[]> => [
@@ -507,6 +400,7 @@ class Client {
     get: async ({ slug }: { slug: string; language: string }): Promise<Type> =>
       ({ ...KOLSHI_DEFAULT_TYPE, slug: slug || KOLSHI_DEFAULT_TYPE.slug }),
   };
+
   shops = {
     /** `GET /shops` (paginated). Legacy `is_active`/search prefix stripped. */
     all: ({
@@ -530,74 +424,8 @@ class Client {
         searchTerm,
         ...params,
       }),
+  };
 
-    // ─── Coming Soon / Delete stubs ──────────────────────────────────────
-    searchNearShops: (_input: ShopMapLocation) =>
-      Promise.reject<any>(
-        new Error('Near-by shops are not supported in Kolshi.'),
-      ),
-    getSearchNearShops: (_input: ShopMapLocation) =>
-      Promise.reject<any>(
-        new Error('Near-by shops are not supported in Kolshi.'),
-      ),
-    shopMaintenanceEvent: (_input: ShopMaintenanceEvent) =>
-      Promise.reject<Shop>(
-        new Error('Shop maintenance toggle is not supported in Kolshi.'),
-      ),
-  };
-  storeNotice = {
-    all: ({ shop_id, shops, ...params }: Partial<StoreNoticeQueryOptions>) => {
-      return HttpClient.get<StoreNoticePaginator>(API_ENDPOINTS.STORE_NOTICES, {
-        searchJoin: 'and',
-        shop_id: shop_id,
-        ...params,
-        search: HttpClient.formatSearchParams({ shop_id, shops }),
-      });
-    },
-  };
-  authors = {
-    all: ({ name, ...params }: Partial<AuthorQueryOptions>) => {
-      return HttpClient.get<AuthorPaginator>(API_ENDPOINTS.AUTHORS, {
-        ...params,
-        searchJoin: 'and',
-        search: HttpClient.formatSearchParams({
-          name,
-        }),
-      });
-    },
-    top: ({ type, ...params }: Partial<AuthorQueryOptions>) =>
-      HttpClient.get<Author[]>(API_ENDPOINTS.AUTHORS_TOP, {
-        ...params,
-        search: HttpClient.formatSearchParams({
-          type,
-        }),
-      }),
-    get: ({ slug, language }: { slug: string; language?: string }) =>
-      HttpClient.get<Author>(`${API_ENDPOINTS.AUTHORS}/${slug}`, {
-        language,
-      }),
-  };
-  manufacturers = {
-    all: ({ name, type, ...params }: Partial<ManufacturerQueryOptions>) =>
-      HttpClient.get<ManufacturerPaginator>(API_ENDPOINTS.MANUFACTURERS, {
-        ...params,
-        search: HttpClient.formatSearchParams({
-          name,
-          type,
-        }),
-      }),
-    top: ({ type, ...params }: Partial<ManufacturerQueryOptions>) =>
-      HttpClient.get<Manufacturer[]>(API_ENDPOINTS.MANUFACTURERS_TOP, {
-        ...params,
-        search: HttpClient.formatSearchParams({
-          type,
-        }),
-      }),
-    get: ({ slug, language }: { slug: string; language?: string }) =>
-      HttpClient.get<Manufacturer>(`${API_ENDPOINTS.MANUFACTURERS}/${slug}`, {
-        language,
-      }),
-  };
   /* ───────────────────────────────────────────────────────────────────
    * Coupons — Kolshi F.5 / K.1
    *
@@ -610,10 +438,10 @@ class Client {
    * Kolshi it is `super_admin`-only, so the public `/offers` page has
    * been removed (see decision log K.1). Customers discover coupons
    * through the checkout "Use best offer" button.
-   * ───────────────────────────────────────────────────────────────── */
+   * ───────────────────────────────────────────────────────────── */
   coupons = {
     /**
-     * `POST /coupons/validate` — new Kolshi contract. Returns
+     * `POST /coupons/validate` — Kolshi contract. Returns
      * `{ is_valid, coupon?, discount?, message? }` so the UI can surface
      * both the savings and the server-side reason on rejection.
      */
@@ -629,23 +457,6 @@ class Client {
         API_ENDPOINTS.COUPONS_BEST_MATCH,
         input,
       ),
-
-    /**
-     * Legacy verify shim — the template's checkout component still
-     * imports this. Accepts the old payload shape and adapts to the new
-     * `validate` endpoint. Removed in S6 once `coupon.tsx` is rewired
-     * to call `validate` directly.
-     */
-    verify: async (input: VerifyCouponInputType) => {
-      const response = await HttpClient.post<KolshiValidateCouponResponse>(
-        API_ENDPOINTS.COUPONS_VALIDATE,
-        {
-          code: input.code,
-          sub_total: input.sub_total,
-        },
-      );
-      return response as unknown as VerifyCouponResponse;
-    },
   };
 
   /* ───────────────────────────────────────────────────────────────────
@@ -654,7 +465,7 @@ class Client {
    * The cart is server-owned. Every mutation round-trips; the client
    * uses React-Query for optimistic updates (see `framework/rest/cart`).
    * Guest carts do not exist — hooks must gate behind auth (F.2).
-   * ───────────────────────────────────────────────────────────────── */
+   * ───────────────────────────────────────────────────────────── */
   cart = {
     /** `GET /cart` — returns the live server cart for the logged-in user. */
     get: () => HttpClient.get<KolshiCart>(API_ENDPOINTS.CART),
@@ -685,11 +496,11 @@ class Client {
    *   - Order states follow ORDER_RECEIVED → … → COMPLETED / CANCELLED
    *     (no `order-pending` etc.). Admin transitions live under
    *     `/orders/{id}/{transition}` per handoff.
-   *   - Refunds, payment-intent, saved-cards, and downloads endpoints
-   *     are removed/unsupported (H.1–H.3, D.8); shims below reject
-   *     with typed errors so legacy callers surface a toast instead of
-   *     crashing until they're deleted in S6.
-   * ───────────────────────────────────────────────────────────────── */
+   *   - Refunds / payment-intent / saved cards / downloads /
+   *     pre-checkout verification endpoints do NOT exist on Kolshi
+   *     (H.1–H.3, D.8, F.6, F.7). Their hooks and stubs were removed
+   *     in S6 so nothing here pretends to reach them.
+   * ───────────────────────────────────────────────────────────── */
   orders = {
     /**
      * `GET /orders`. The template passes `orderBy`/`sortedBy` from the
@@ -725,7 +536,7 @@ class Client {
      * Pickbazar payloads are accepted at runtime; fields Kolshi ignores
      * are stripped silently rather than rejecting the request.
      */
-    create: (input: KolshiCreateOrderInput | CreateOrderInput) =>
+    create: (input: KolshiCreateOrderInput) =>
       HttpClient.post<Order[]>(API_ENDPOINTS.ORDERS, input),
 
     /** `PUT /orders/{id}/cancel`. */
@@ -740,59 +551,6 @@ class Client {
       HttpClient.get<KolshiOrderHistoryEntry[]>(
         `${API_ENDPOINTS.ORDERS}/${id}/history`,
       ),
-
-    // ─── Coming Soon / Deleted (H.1–H.3, H.5, D.8) ──────────────────────
-    /** @deprecated Refund workflow is admin-only; customers cannot request. */
-    refunds: (_params: Pick<QueryOptions, 'limit'>) =>
-      Promise.reject<RefundPaginator>(
-        new Error('Refund requests are not supported in Kolshi.'),
-      ),
-    /** @deprecated see H.5. */
-    createRefund: (_input: CreateRefundInput) =>
-      Promise.reject<Refund>(
-        new Error('Refund requests are not supported in Kolshi.'),
-      ),
-    /** @deprecated see H.1 — payment flow is managed by `/payments/process`. */
-    payment: (_input: CreateOrderPaymentInput) =>
-      Promise.reject<any>(
-        new Error('Legacy payment-intent flow is disabled.'),
-      ),
-    /** @deprecated see H.3. */
-    savePaymentMethod: (_input: any) =>
-      Promise.reject<any>(
-        new Error('Saved payment methods are not supported.'),
-      ),
-    /** @deprecated see D.8. */
-    downloadable: (_query?: OrderQueryOptions) =>
-      Promise.reject<DownloadableFilePaginator>(
-        new Error('Digital downloads are not supported in Kolshi.'),
-      ),
-    /** @deprecated see F.6 — no checkout-verify step in Kolshi. */
-    verify: (_input: CheckoutVerificationInput) =>
-      Promise.resolve<VerifiedCheckoutData>({
-        total_tax: 0,
-        shipping_charge: 0,
-        unavailable_products: [],
-      } as VerifiedCheckoutData),
-    /** @deprecated see D.8. */
-    generateDownloadLink: (_input: { digital_file_id: string }) =>
-      Promise.reject<string>(
-        new Error('Digital downloads are not supported in Kolshi.'),
-      ),
-    /** @deprecated see H.1 — Stripe wiring lives in S7+. */
-    getPaymentIntentOriginal: (_input: { tracking_number: string }) =>
-      Promise.reject<PaymentIntentCollection>(
-        new Error('Payment-intent flow is disabled pending webhook rollout.'),
-      ),
-    /** @deprecated see H.1. */
-    getPaymentIntent: (_input: {
-      tracking_number: string;
-      payment_gateway?: string;
-      recall_gateway?: boolean;
-    }) =>
-      Promise.reject<PaymentIntentCollection>(
-        new Error('Payment-intent flow is disabled pending webhook rollout.'),
-      ),
   };
 
   /* ───────────────────────────────────────────────────────────────────
@@ -800,7 +558,7 @@ class Client {
    *
    * The endpoint is unauthenticated but requires the customer contact
    * (phone/email) that was supplied at checkout as a weak shared secret.
-   * ───────────────────────────────────────────────────────────────── */
+   * ───────────────────────────────────────────────────────────── */
   tracking = {
     /** `GET /tracking/{trackingNumber}?contact=`. */
     get: (trackingNumber: string, contact?: string) =>
@@ -809,14 +567,7 @@ class Client {
         contact ? { contact } : undefined,
       ),
   };
-  refundReason = {
-    all: ({ type, ...params }: Partial<RefundQueryOptions>) =>
-      HttpClient.get<RefundReasonPaginator>(API_ENDPOINTS.REFUNDS_REASONS, {
-        searchJoin: 'and',
-        ...params,
-        ...(type && { search: HttpClient.formatSearchParams({ type }) }),
-      }),
-  };
+
   users = {
     // ─── Core auth (Kolshi A-section) ────────────────────────────────────
     me: () => HttpClient.get<User>(API_ENDPOINTS.USERS_ME),
@@ -832,8 +583,8 @@ class Client {
       ),
     /**
      * Kolshi exposes token validation as `GET /auth/validate-reset-token?token=`.
-     * We translate the Pickbazar-shaped payload (`{ token, email }`) down to the
-     * query param the backend actually consumes — `email` is ignored.
+     * We translate the Pickbazar-shaped payload (`{ token, email }`) down to
+     * the query param the backend actually consumes — `email` is ignored.
      */
     verifyForgotPasswordToken: (input: VerifyForgotPasswordUserInput) =>
       HttpClient.get<{ valid: boolean }>(
@@ -865,7 +616,7 @@ class Client {
       avatar?: string | null;
       bio?: string | null;
       contact?: string | null;
-    }) => HttpClient.put<any>(API_ENDPOINTS.ME_PROFILE, input),
+    }) => HttpClient.put<User>(API_ENDPOINTS.ME_PROFILE, input),
 
     // ─── Addresses (B3–B8) ───────────────────────────────────────────────
     addresses: {
@@ -895,52 +646,11 @@ class Client {
           {},
         ),
     },
-    deleteAddress: ({ id }: { id: string | number }) =>
-      HttpClient.delete<void>(`${API_ENDPOINTS.ME_ADDRESSES}/${id}`),
 
     // ─── Kolshi has no server-side logout — caller drops the cookie. ─────
     logout: async () => Promise.resolve(true),
-
-    // ─── Legacy / NYI surface kept as compiling stubs ────────────────────
-    // Direct user-PUT (admin-only in Kolshi) — no shop UI should call this.
-    update: (_user: UpdateUserInput) =>
-      Promise.reject<User>(
-        new Error('Direct user updates are not supported in Kolshi.'),
-      ),
-    // Email change has no dedicated endpoint; decision log marks B.7 as Hide.
-    updateEmail: (_input: UpdateEmailUserInput) =>
-      Promise.reject<EmailChangeResponse>(
-        new Error('Email change is not available yet.'),
-      ),
-    // Password change route is hidden (A.6 Hide). Leaving the call alive but
-    // pointed at `/me/password` so a future phase can surface the UI.
-    changePassword: (input: ChangePasswordUserInput) =>
-      HttpClient.put<PasswordChangeResponse>(
-        API_ENDPOINTS.ME_PASSWORD,
-        {
-          currentPassword: (input as any).oldPassword ?? input.newPassword,
-          newPassword: input.newPassword,
-        },
-      ),
-    // Coming Soon — A.3 / A.4
-    socialLogin: (_input: SocialLoginInputType) =>
-      Promise.reject<AuthResponse>(
-        new Error('Social login is coming soon.'),
-      ),
-    sendOtpCode: (_input: SendOtpCodeInputType) =>
-      Promise.reject<OTPResponse>(new Error('OTP login is coming soon.')),
-    verifyOtpCode: (_input: VerifyOtpInputType) =>
-      Promise.reject<OTPVerifyResponse>(
-        new Error('OTP login is coming soon.'),
-      ),
-    OtpLogin: (_input: OtpLoginInputType) =>
-      Promise.reject<AuthResponse>(new Error('OTP login is coming soon.')),
-    // Marketing / misc — scheduled for Delete in S6
-    subscribe: (_input: { email: string }) =>
-      Promise.reject<any>(new Error('Newsletter signup is not available.')),
-    contactUs: (_input: CreateContactUsInput) =>
-      Promise.reject<any>(new Error('Contact form is not available.')),
   };
+
   /* ───────────────────────────────────────────────────────────────────
    * Wishlist — Kolshi J.1
    *
@@ -970,14 +680,7 @@ class Client {
         {},
       ),
 
-    /**
-     * `DELETE /wishlist/products/{productId}`.
-     *
-     * Accepts either the product id or the legacy wishlist-row id —
-     * existing UI sometimes passes the row id. Callers that still pass
-     * the row id need to be migrated; at runtime the shim throws a
-     * diagnostic error to surface misuse during QA.
-     */
+    /** `DELETE /wishlist/products/{productId}`. */
     remove: (productId: string | number) =>
       HttpClient.delete<void>(
         `${API_ENDPOINTS.WISHLIST_PRODUCTS}/${productId}`,
@@ -1025,6 +728,7 @@ class Client {
       return { in_wishlist: true };
     },
   };
+
   settings = {
     /**
      * `GET /settings` returns a flat list of `{setting_key, setting_value,
@@ -1075,112 +779,8 @@ class Client {
         options: options as Settings['options'],
       };
     },
-    /**
-     * Kolshi does not accept multipart uploads; clients post direct to
-     * Cloudinary via `useCloudinaryUpload`. This shim stays so legacy
-     * callers compile until they are rewired in later phases.
-     */
-    upload: (_input: File[]) =>
-      Promise.reject<Attachment[]>(
-        new Error(
-          'Multipart uploads are not supported by Kolshi — use Cloudinary.',
-        ),
-      ),
-  };
-  cards = {
-    all: (params?: any) =>
-      HttpClient.get<Card[]>(API_ENDPOINTS.CARDS, { ...params }),
-    remove: ({ id }: { id: string }) =>
-      HttpClient.delete<any>(`${API_ENDPOINTS.CARDS}/${id}`),
-    addPaymentMethod: (method_key: any) =>
-      HttpClient.post<any>(API_ENDPOINTS.CARDS, method_key),
-    makeDefaultPaymentMethod: (input: any) =>
-      HttpClient.post<any>(API_ENDPOINTS.SET_DEFAULT_CARD, input),
   };
 
-  faqs = {
-    // all: (params?: any) =>
-    //   HttpClient.get<FAQS[]>(API_ENDPOINTS.FAQS, { ...params }),
-    all: ({ faq_type, issued_by, ...params }: Partial<FaqsQueryOptions>) =>
-      HttpClient.get<FaqsPaginator>(API_ENDPOINTS.FAQS, {
-        ...params,
-        search: HttpClient.formatSearchParams({
-          faq_type,
-          issued_by,
-        }),
-      }),
-    get: (id: string) => HttpClient.get<FAQS>(`${API_ENDPOINTS.FAQS}/${id}`),
-  };
-
-  termsAndConditions = {
-    // all: (params?: any) =>
-    //   HttpClient.get<FAQS[]>(API_ENDPOINTS.FAQS, { ...params }),
-    all: ({
-      type,
-      issued_by,
-      ...params
-    }: Partial<TermsAndConditionsQueryOptions>) =>
-      HttpClient.get<TermsAndConditionsPaginator>(
-        API_ENDPOINTS.TERMS_AND_CONDITIONS,
-        {
-          searchJoin: 'and',
-          ...params,
-          search: HttpClient.formatSearchParams({
-            type,
-            issued_by,
-          }),
-        },
-      ),
-    get: (id: string) =>
-      HttpClient.get<FAQS>(`${API_ENDPOINTS.TERMS_AND_CONDITIONS}/${id}`),
-  };
-  flashSale = {
-    // all: (params?: any) =>
-    //   HttpClient.get<FAQS[]>(API_ENDPOINTS.FAQS, { ...params }),
-    all: ({ ...params }: Partial<FlashSaleQueryOptions>) =>
-      HttpClient.get<FlashSalePaginator>(API_ENDPOINTS.FLASH_SALE, {
-        ...params,
-      }),
-    get: ({ slug, language }: { slug: string; language?: string }) => {
-      return HttpClient.get<FlashSale>(`${API_ENDPOINTS.FLASH_SALE}/${slug}`, {
-        language,
-        with: 'products',
-      });
-    },
-    getProductsByFlashSale: ({
-      slug,
-      ...params
-    }: FlashSaleProductsQueryOptions) => {
-      return HttpClient.get<ProductPaginator>(
-        API_ENDPOINTS.PRODUCTS_BY_FLASH_SALE,
-        {
-          searchJoin: 'and',
-          slug,
-          ...params,
-        },
-      );
-    },
-  };
-
-  refundPolicies = {
-    all: ({
-      title,
-      status,
-      target,
-      ...params
-    }: Partial<RefundPolicyQueryOptions>) =>
-      HttpClient.get<RefundPolicyPaginator>(API_ENDPOINTS.REFUND_POLICIES, {
-        searchJoin: 'and',
-        ...params,
-        search: HttpClient.formatSearchParams({
-          title,
-          target,
-          status,
-        }),
-
-        with: 'shop;refunds',
-      }),
-  };
   /* ───────────────────────────────────────────────────────────────────
    * Notifications — Kolshi M.3
    *
@@ -1223,8 +823,7 @@ class Client {
     /**
      * Kolshi has no server-side mark-as-read. This resolves immediately
      * so the mutation hook can flip local state without hitting the
-     * network. Kept under the same name so the UI layer stays
-     * unchanged.
+     * network.
      */
     readNotifyLog: (_input: { id: string | number }) =>
       Promise.resolve({} as NotifyLogs),
@@ -1232,13 +831,6 @@ class Client {
     /** See {@link readNotifyLog}. */
     readAllNotifyLogs: (_params: Partial<NotifyLogsQueryOptions> = {}) =>
       Promise.resolve(null as unknown),
-  };
-  becomeSeller = {
-    get: ({ language }: Pick<QueryOptions, 'language'>) => {
-      return HttpClient.get<BecomeSeller>(API_ENDPOINTS.BECAME_SELLER, {
-        language,
-      });
-    },
   };
 }
 
@@ -1319,18 +911,24 @@ function coerceSettingValue(raw: unknown): unknown {
  *    requires it; leaving the forwarding permissive here so
  *    admin-authored payloads also work.
  */
-function toKolshiReviewPayload(input: CreateReviewInput): Record<string, unknown> {
+function toKolshiReviewPayload(
+  input: CreateReviewInput,
+): Record<string, unknown> {
   const { product_id, order_id, comment, rating, imageUrls, photos } = input;
-  const flattenedPhotos = Array.isArray(imageUrls) && imageUrls.length > 0
-    ? imageUrls
-    : Array.isArray(photos)
-    ? photos
-        .map((p) => (typeof p === 'string' ? p : (p?.original ?? p?.thumbnail)))
-        .filter((url): url is string => Boolean(url))
-    : undefined;
+  const flattenedPhotos =
+    Array.isArray(imageUrls) && imageUrls.length > 0
+      ? imageUrls
+      : Array.isArray(photos)
+      ? photos
+          .map((p) =>
+            typeof p === 'string' ? p : (p?.original ?? p?.thumbnail),
+          )
+          .filter((url): url is string => Boolean(url))
+      : undefined;
 
   return {
-    productId: typeof product_id === 'string' ? Number(product_id) : product_id,
+    productId:
+      typeof product_id === 'string' ? Number(product_id) : product_id,
     rating,
     ...(comment ? { comment } : {}),
     ...(order_id

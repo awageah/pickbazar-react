@@ -241,7 +241,6 @@ const Maintenance = ({ children }: MaintenanceProps) => {
             contactDetails: settings?.contactDetails ?? [],
             title: settings?.maintenance?.title ?? '',
             description: settings?.maintenance?.description ?? '',
-            buttonTitleOne: settings?.maintenance?.buttonTitleOne ?? '',
             buttonTitleTwo: settings?.maintenance?.buttonTitleTwo ?? '',
             image: settings?.maintenance?.image as any,
             isOverlayColor: settings?.maintenance?.isOverlayColor as any,

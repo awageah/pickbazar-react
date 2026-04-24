@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { useAtom } from 'jotai';
-import { useRouter } from 'next/router';
 import { useTranslation } from 'next-i18next';
-import { signOut as socialLoginSignOut } from 'next-auth/react';
 import { toast } from 'react-toastify';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
 import { useStateMachine } from 'little-state-machine';
@@ -33,7 +31,6 @@ import { authorizationAtom } from '@/store/authorization-atom';
 import { clearCheckoutAtom } from '@/store/checkout';
 import type {
   AuthResponse,
-  ChangePasswordUserInput,
   CreateAddressInput,
   ForgotPasswordUserInput,
   LoginUserInput,
@@ -182,9 +179,7 @@ export function useLogin() {
 // ─── A8. Logout (client-only) ───────────────────────────────────────────────
 /**
  * Kolshi has no server-side logout — the cookie IS the session. We drop the
- * cookie, flush React-Query so the next user doesn't see cached data, and
- * let `socialLoginSignOut` clean up any dangling NextAuth state from when
- * social sign-in was a feature.
+ * cookie and flush React-Query so the next user doesn't see cached data.
  */
 export function useLogout() {
   const queryClient = useQueryClient();
@@ -206,8 +201,6 @@ export function useLogout() {
       setAuthorized(false);
       // @ts-ignore — `clearCheckoutAtom` is a write-only atom (null setter).
       resetCheckout();
-      // Fire-and-forget NextAuth cleanup for legacy social sessions.
-      socialLoginSignOut({ redirect: false }).catch(() => undefined);
       queryClient.clear();
     } finally {
       setIsLoading(false);
@@ -480,40 +473,14 @@ export const useDeleteAddress = () => {
   );
 };
 
-// ─── Hidden / Coming-Soon shims (keep legacy consumers compiling) ───────────
-// Decision log — A.6 Hide. Keep the hook so the component compiles; the page
-// is redirected away in `pages/change-password.tsx`.
-export function useChangePassword() {
-  const [formError, setFormError] =
-    useState<Partial<ChangePasswordUserInput> | null>(null);
-  const { mutate, isLoading } = useMutation(client.users.changePassword, {
-    onError: (err) => {
-      const fieldErrors = getFieldErrors(err);
-      setFormError((fieldErrors as any) ?? null);
-    },
-  });
-  return { mutate, isLoading, formError, setFormError };
-}
-
-/** B.7 Hide — no backend endpoint exists for email change. */
-export function useUpdateEmail() {
-  return useMutation(client.users.updateEmail, {
-    onError: () => {
-      toast.error('Email change is not available.');
-    },
-  });
-}
-
-/** L.5 Delete — kept as no-op so vendor-contact-form still compiles. */
-export function useContact(_opts?: { reset?: () => void }) {
-  return useMutation(client.users.contactUs, {
-    onError: () => {
-      toast.error('Contact form is not available yet.');
-    },
-  });
-}
-
 // ─── A.3 / A.4 Coming-Soon surface ──────────────────────────────────────────
+//
+// Decision log — A.6 `useChangePassword`, B.7 `useUpdateEmail`, and L.5
+// `useContact` have been removed with their UI surfaces (change-password
+// form, profile email card, vendor / super-admin contact forms). Add them
+// back once the corresponding Kolshi endpoints exist; the page stubs
+// (`/change-password` → redirect to `/profile`, `/contact` → contact
+// channels only) remain in place so deep links don't 404.
 function comingSoon() {
   toast.error('This feature is coming soon.');
 }
@@ -533,7 +500,7 @@ export function useSocialLogin() {
 export function useSendOtpCode(_opts?: { verifyOnly?: boolean }) {
   const [serverError, setServerError] = useState<string | null>(null);
   return {
-    mutate: () => comingSoon(),
+    mutate: (_input?: unknown) => comingSoon(),
     isLoading: false,
     serverError,
     setServerError,
@@ -543,7 +510,7 @@ export function useSendOtpCode(_opts?: { verifyOnly?: boolean }) {
 export function useVerifyOtpCode(_opts?: { onVerifySuccess?: Function }) {
   const [serverError, setServerError] = useState<string | null>(null);
   return {
-    mutate: () => comingSoon(),
+    mutate: (_input?: unknown) => comingSoon(),
     isLoading: false,
     serverError,
     setServerError,

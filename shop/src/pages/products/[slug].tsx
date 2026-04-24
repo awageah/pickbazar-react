@@ -4,7 +4,6 @@ import { getLayout } from '@/components/layouts/layout';
 import { AttributesProvider } from '@/components/products/details/attributes.context';
 import Seo from '@/components/seo/seo';
 import { useWindowSize } from '@/lib/use-window-size';
-import ProductQuestions from '@/components/questions/product-questions';
 import AverageRatings from '@/components/reviews/average-ratings';
 import ProductReviews from '@/components/reviews/product-reviews';
 import isEmpty from 'lodash/isEmpty';
@@ -12,17 +11,25 @@ import dynamic from 'next/dynamic';
 
 import { getStaticPaths, getStaticProps } from '@/framework/product.ssr';
 export { getStaticPaths, getStaticProps };
-//FIXME: typescript and layout
+
+/**
+ * Kolshi S6 — product detail page.
+ *
+ * `ProductQuestions` (the product Q&A block) is removed. Kolshi has no
+ * Q&A endpoints (decision log I.2 Coming Soon); the feature has been
+ * pulled from the PDP until a backend ships. Reviews and ratings remain
+ * fully wired.
+ */
 const Details = dynamic(() => import('@/components/products/details/details'));
 const BookDetails = dynamic(
-  () => import('@/components/products/details/book-details')
+  () => import('@/components/products/details/book-details'),
 );
 const RelatedProducts = dynamic(
-  () => import('@/components/products/details/related-products')
+  () => import('@/components/products/details/related-products'),
 );
 const CartCounterButton = dynamic(
   () => import('@/components/cart/cart-counter-button'),
-  { ssr: false }
+  { ssr: false },
 );
 
 const ProductPage: NextPageWithLayout<
@@ -54,11 +61,6 @@ const ProductPage: NextPageWithLayout<
 
           <ProductReviews
             productId={product?.id}
-            productType={product?.type?.slug}
-          />
-          <ProductQuestions
-            productId={product?.id}
-            shopId={product?.shop?.id}
             productType={product?.type?.slug}
           />
           {product.type?.slug !== 'books' &&

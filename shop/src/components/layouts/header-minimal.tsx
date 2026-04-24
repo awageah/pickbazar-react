@@ -4,7 +4,6 @@ import Alert from '@/components/ui/alert';
 import Button from '@/components/ui/button';
 import CountdownTimer from '@/components/ui/countdown-timer';
 import LanguageSwitcher from '@/components/ui/language-switcher';
-import Link from '@/components/ui/link';
 import Logo from '@/components/ui/logo';
 import { useModalAction } from '@/components/ui/modal/modal.context';
 import SearchWithSuggestion from '@/components/ui/search/search-with-suggestion';
@@ -47,7 +46,6 @@ const HeaderNotification = dynamic(
   },
 );
 import { useShop } from '@/framework/shop';
-import { Routes } from '@/config/routes';
 
 const HeaderMinimal = ({ layout }: { layout: string }) => {
   const { openModal } = useModalAction();
@@ -233,12 +231,13 @@ const HeaderMinimal = ({ layout }: { layout: string }) => {
 
             <CartCounterIconButton />
             <div className="flex items-center lg:space-x-4 rtl:lg:space-x-reverse">
+              {/*
+               * Kolshi S6 — "Become a seller" CTA removed; Kolshi has no
+               * public seller-onboarding landing page.
+               */}
               <div className="hidden lg:inline-flex">
                 {isAuthorize ? <AuthorizedMenu /> : <JoinButton />}
               </div>
-              <Link href={Routes.becomeSeller} variant="button">
-                {t('text-become-seller')}
-              </Link>
             </div>
           </div>
         </div>

@@ -5,14 +5,21 @@ import { useRouter } from 'next/router';
 import Sorting from './sorting';
 import PriceFilter from '@/components/search-view/price-filter';
 import CategoryFilter from '@/components/search-view/category-filter-view';
-import TagFilter from '@/components/search-view/tag-filter-view';
-import ManufacturerFilter from '@/components/search-view/manufacturer-filter-view';
 import classNames from 'classnames';
 import { useAtom } from 'jotai';
 import { drawerAtom } from '@/store/drawer-atom';
 import ArrowNarrowLeft from '@/components/icons/arrow-narrow-left';
 import { useIsRTL } from '@/lib/locals';
 import Button from '@/components/ui/button';
+
+/**
+ * Kolshi S6 — sidebar-filter.
+ *
+ * `TagFilter` and `ManufacturerFilter` are removed: Kolshi exposes
+ * neither `/tags` nor `/manufacturers` (decision log D.8 Delete, E.4
+ * Delete). Search still supports `categoryId`, price range, sort, and
+ * keyword text — everything Kolshi's `/products` endpoint accepts.
+ */
 
 const FieldWrapper = ({ children, title }: any) => (
   <div className="border-b border-gray-200 py-7 last:border-0">
@@ -25,22 +32,10 @@ function ClearFiltersButton() {
   const router = useRouter();
 
   function clearFilters() {
-    const {
-      price,
-      category,
-      sortedBy,
-      orderBy,
-      tags,
-      manufacturer,
-      text,
-      ...rest
-    } = router.query;
+    const { price, category, sortedBy, orderBy, text, ...rest } = router.query;
     router.push({
       pathname: router.pathname,
-      query: {
-        ...rest,
-        ...(router.route !== '/[searchType]/search' && { manufacturer }),
-      },
+      query: { ...rest },
     });
   }
   return (
@@ -56,7 +51,7 @@ const SidebarFilter: React.FC<{
   type?: string;
   showManufacturers?: boolean;
   className?: string;
-}> = ({ type, showManufacturers = true, className }) => {
+}> = ({ type, className }) => {
   const router = useRouter();
   const { isRTL } = useIsRTL();
   const { t } = useTranslation('common');
@@ -66,7 +61,7 @@ const SidebarFilter: React.FC<{
     <div
       className={classNames(
         'flex h-full w-full flex-col rounded-xl border-gray-200 bg-white lg:h-auto lg:border',
-        className
+        className,
       )}
     >
       <div className="sticky top-0 z-10 flex items-center justify-between rounded-tl-xl rounded-tr-xl border-b border-gray-200 bg-white px-5 py-6 lg:static">
@@ -110,16 +105,6 @@ const SidebarFilter: React.FC<{
         <FieldWrapper title="text-sort-by-price">
           <PriceFilter />
         </FieldWrapper>
-
-        <FieldWrapper title="text-tags">
-          <TagFilter type={type} />
-        </FieldWrapper>
-
-        {showManufacturers && (
-          <FieldWrapper title="text-manufacturers">
-            <ManufacturerFilter type={type} />
-          </FieldWrapper>
-        )}
       </div>
       <div className="sticky bottom-0 z-10 mt-auto border-t border-gray-200 bg-white p-5 lg:hidden">
         <Button

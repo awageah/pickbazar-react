@@ -26,10 +26,14 @@ const NotificationLists: React.FC<NotificationListsProps> = ({
   const { t } = useTranslation();
   const { readNotification, isLoading } = useNotificationRead();
   const [loadingId, setLoadingId] = useState<string>();
-  const readingNotification = useCallback(({ id }: { id: string }) => {
-    readNotification({ id });
-    setLoadingId(id);
-  }, []);
+  const readingNotification = useCallback(
+    ({ id }: { id: string | number }) => {
+      const idStr = String(id);
+      readNotification({ id: idStr });
+      setLoadingId(idStr);
+    },
+    [readNotification],
+  );
 
   return notifications?.map((notification: NotifyLogs) => {
     const currentButtonLoading = !!isLoading && loadingId === notification?.id;
@@ -48,7 +52,7 @@ const NotificationLists: React.FC<NotificationListsProps> = ({
           key={notification?.id}
         >
           <Link
-            href={Routes?.notifyLogsSingle(notification?.id)}
+            href={Routes?.notifyLogsSingle(String(notification?.id))}
             className={showButton ? 'shrink-0 2xl:mr-6 2xl:w-4/5' : ''}
             {...(!Boolean(notification?.is_read) && {
               onClick: () => readingNotification({ id: notification?.id }),
@@ -56,7 +60,7 @@ const NotificationLists: React.FC<NotificationListsProps> = ({
             {...rest}
           >
             <h3 className="relative text-sm font-medium">
-              {notification?.notify_text?.length > character
+              {(notification?.notify_text?.length ?? 0) > character
                 ? notification?.notify_text?.substring(0, character) + '...'
                 : notification?.notify_text}
             </h3>

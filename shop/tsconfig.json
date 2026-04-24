@@ -23,5 +23,5 @@
     "incremental": true
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
-  "exclude": ["__generated__", "node_modules", "src/framework/graphql"]
+  "exclude": ["__generated__", "node_modules"]
 }

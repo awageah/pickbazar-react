@@ -10,7 +10,7 @@ import {
   useClearCart,
   useRemoveCartItem,
   useUpdateCartItem,
-} from '@/framework/rest/cart';
+} from '@/framework/cart';
 import type { Item } from './cart.utils';
 import type { KolshiCart, KolshiCartItem } from '@/types';
 import {

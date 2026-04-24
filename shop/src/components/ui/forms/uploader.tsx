@@ -1,9 +1,40 @@
-import { useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'next-i18next';
+import { toast } from 'react-toastify';
 import { UploadIcon } from '@/components/icons/upload-icon';
 import Spinner from '@/components/ui/loaders/spinner/spinner';
-import { useUploads } from '@/framework/settings';
+import { useCloudinaryUpload } from '@/framework/utils/cloudinary';
+
+/**
+ * Kolshi S6 — generic image uploader.
+ *
+ * Kolshi has no multipart upload endpoint; clients must POST directly to
+ * Cloudinary (see `framework/utils/cloudinary.ts`). The uploader now
+ * performs that upload in-place and feeds the resulting `secure_url`
+ * back to the form as `{ original, thumbnail }` attachments so existing
+ * payload builders (e.g. `toKolshiReviewPayload`) pick up the URL
+ * unchanged.
+ *
+ * The previous `useUploads` flow (which went through a rejected
+ * `client.settings.upload` stub) is removed.
+ */
+type Attachment = {
+  id?: string | number;
+  original?: string;
+  thumbnail?: string;
+  [key: string]: unknown;
+};
+
+interface UploaderProps {
+  onChange: (attachments: Attachment[]) => void;
+  value?: Attachment[] | null;
+  name?: string;
+  onBlur?: React.FocusEventHandler<HTMLInputElement>;
+  multiple?: boolean;
+  /** Cloudinary folder, defaults to `kolshi/uploads`. */
+  folder?: string;
+}
 
 export default function Uploader({
   onChange,
@@ -11,59 +42,71 @@ export default function Uploader({
   name,
   onBlur,
   multiple = false,
-}: any) {
+  folder = 'kolshi/uploads',
+}: UploaderProps) {
   const { t } = useTranslation('common');
-  const {
-    mutate: upload,
-    isLoading,
-    files,
-  } = useUploads({
-    onChange,
-    defaultFiles: value,
+  const initial = useMemo<Attachment[]>(
+    () => (Array.isArray(value) ? value.filter(Boolean) : []),
+    [value],
+  );
+  const [attachments, setAttachments] = useState<Attachment[]>(initial);
+
+  // Keep the controlled value in sync when the form resets externally.
+  useEffect(() => {
+    setAttachments(initial);
+  }, [initial]);
+
+  const { mutate: uploadToCloudinary, isLoading } = useCloudinaryUpload({
+    folder,
   });
 
   const onDrop = useCallback(
-    (acceptedFiles: any) => {
-      upload(acceptedFiles);
+    (acceptedFiles: File[]) => {
+      if (!acceptedFiles.length) return;
+      uploadToCloudinary(acceptedFiles, {
+        onSuccess: (results) => {
+          const uploaded: Attachment[] = results.map((r) => ({
+            id: r.public_id,
+            original: r.secure_url,
+            thumbnail: r.secure_url,
+          }));
+          const next = multiple ? [...attachments, ...uploaded] : uploaded;
+          setAttachments(next);
+          onChange(next);
+        },
+        onError: (err) => {
+          toast.error(
+            err?.message ?? (t('error-upload-failed') as unknown as string),
+          );
+        },
+      });
     },
-    [upload]
+    [attachments, multiple, onChange, t, uploadToCloudinary],
   );
+
   const { getRootProps, getInputProps } = useDropzone({
     //@ts-ignore
     accept: 'image/*',
     multiple,
     onDrop,
+    disabled: isLoading,
   });
-  //FIXME: package update need to check
-  // types: [
-  //   {
-  //     description: 'Images',
-  //     accept: {
-  //       'image/*': ['.png', '.gif', '.jpeg', '.jpg']
-  //     }
-  //   },
-  // ],
-  // excludeAcceptAllOption: true,
-  // multiple: false
-  const thumbs = files.map((file: any, idx) => (
-    <div
-      className="relative inline-flex flex-col mt-2 overflow-hidden border rounded border-border-100 ltr:mr-2 rtl:ml-2"
-      key={idx}
-    >
-      <div className="flex items-center justify-center w-16 h-16 min-w-0 overflow-hidden">
-        {/* eslint-disable */}
-        <img src={file.preview} alt={file?.name} />
+
+  const thumbs = attachments.map((file, idx) => {
+    const src = (file?.thumbnail ?? file?.original) as string | undefined;
+    if (!src) return null;
+    return (
+      <div
+        className="relative inline-flex flex-col mt-2 overflow-hidden border rounded border-border-100 ltr:mr-2 rtl:ml-2"
+        key={`${file.id ?? idx}-${idx}`}
+      >
+        <div className="flex items-center justify-center w-16 h-16 min-w-0 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt={`upload-${idx}`} />
+        </div>
       </div>
-    </div>
-  ));
-  //FIXME: maybe no need to use this
-  useEffect(
-    () => () => {
-      // Make sure to revoke the data uris to avoid memory leaks
-      files.forEach((file: any) => URL.revokeObjectURL(file.preview));
-    },
-    [files]
-  );
+    );
+  });
 
   return (
     <section className="upload">
@@ -90,11 +133,11 @@ export default function Uploader({
       </div>
 
       <aside className="flex flex-wrap mt-2">
-        {!!thumbs.length && thumbs}
+        {thumbs}
         {isLoading && (
           <div className="flex items-center h-16 mt-2 ltr:ml-2 rtl:mr-2">
             <Spinner
-              text={t('text-loading')}
+              text={t('text-loading') as unknown as string}
               simple={true}
               className="w-6 h-6"
             />

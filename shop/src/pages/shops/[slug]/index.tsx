@@ -3,7 +3,6 @@ import ProductsGrid from '@/components/products/grid';
 import ShopSidebar from '@/components/shops/sidebar';
 import CountdownTimer from '@/components/ui/countdown-timer/maintenance';
 import { Image } from '@/components/ui/image';
-import { useShopMaintenanceEvent } from '@/framework/shop';
 import { getStaticPaths, getStaticProps } from '@/framework/shop.ssr';
 import {
   checkIsShopMaintenanceModeComing,
@@ -32,7 +31,6 @@ const ShopPage: NextPageWithLayout<
   const { locale, query, asPath, reload } = useRouter();
   const { width } = useWindowSize();
   const { t } = useTranslation('banner');
-  const { createShopMaintenanceEventRequest } = useShopMaintenanceEvent();
   const [_, setUnderMaintenanceIsComing] = useAtom(
     checkIsShopMaintenanceModeComing,
   );
@@ -152,15 +150,7 @@ const ShopPage: NextPageWithLayout<
                           : (shop?.settings?.shopMaintenance?.start as string),
                       )
                     }
-                    onComplete={() =>
-                      createShopMaintenanceEventRequest({
-                        shop_id: shop?.id,
-                        isMaintenance: false,
-                        isShopUnderMaintenance: Boolean(
-                          shop?.settings?.isShopUnderMaintenance,
-                        ),
-                      })
-                    }
+                    onComplete={() => setUnderMaintenanceStart(false)}
                   />
                 </div>
                 {shop?.settings?.shopMaintenance?.title ? (

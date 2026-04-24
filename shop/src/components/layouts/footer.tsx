@@ -2,7 +2,6 @@ import { useTranslation } from 'next-i18next';
 import { siteSettings } from '@/config/site';
 import Link from '@/components/ui/link';
 import Logo from '@/components/ui/logo';
-import SubscriptionWidget from '@/components/settings/subscribe-to-newsletter';
 import { useSettings } from '@/framework/settings';
 import { useRouter } from 'next/router';
 import { StripeIcon } from '@/components/icons/payment-gateways/stripe';
@@ -148,12 +147,10 @@ const Footer = () => {
           </div>
         ))}
 
-        <div className="col-span-full md:col-span-2 lg:col-auto">
-          <SubscriptionWidget
-            title="text-subscribe-now"
-            description="text-subscribe-details"
-          />
-        </div>
+        {/* Kolshi N.3 — newsletter subscription block removed. Kolshi has no
+            newsletter endpoint; the widget (and its parent `/settings/subscribe-to-newsletter`
+            module) have been dropped. Reinstate only when a subscription
+            backend ships. */}
       </div>
 
       {/* Bottom */}

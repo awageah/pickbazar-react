@@ -1,6 +1,4 @@
 import {
-  CreateOrderInput,
-  DownloadableFilePaginator,
   KolshiCreateOrderInput,
   KolshiOrderHistoryEntry,
   KolshiOrderQueryOptions,
@@ -8,7 +6,6 @@ import {
   Order,
   OrderPaginator,
   OrderQueryOptions,
-  QueryOptions,
 } from '@/types';
 import {
   useInfiniteQuery,
@@ -187,14 +184,12 @@ export function usePlaceOrderMutation() {
 
 /**
  * Legacy alias preserved so older call sites (`useCreateOrder().createOrder(...)`)
- * keep compiling while we migrate to `usePlaceOrderMutation`. The legacy
- * Pickbazar payload is accepted verbatim; Kolshi quietly ignores unknown
- * fields.
+ * keep compiling while we migrate to `usePlaceOrderMutation`.
  */
 export function useCreateOrder() {
   const { placeOrder, isLoading } = usePlaceOrderMutation();
-  function createOrder(input: CreateOrderInput | KolshiCreateOrderInput) {
-    placeOrder(input as any);
+  function createOrder(input: KolshiCreateOrderInput) {
+    placeOrder(input);
   }
   return { createOrder, isLoading };
 }
@@ -233,106 +228,3 @@ export function usePublicTracking({
   };
 }
 
-/**
- * Kolshi skips the pre-place-order verification round-trip (handoff F.6).
- * Callers (`check-availability-action`) kept their old signature, so we
- * expose a compatible mutation that resolves with a pass-through payload.
- */
-export function useVerifyOrder() {
-  return useMutation(client.orders.verify);
-}
-
-/* ──────────────────────────────────────────────────────────────────────
- * Legacy stubs — features scheduled for Delete in S6.
- *
- * Keeping these exports alive means the refunds / downloads / payment-
- * intent pages still compile until they are removed in S6. Each stub
- * resolves/rejects with a predictable shape so callers fall through to
- * the "coming soon" toast path.
- * ──────────────────────────────────────────────────────────────────── */
-/** @deprecated Refund workflow is admin-only. */
-export function useRefunds(_options: Pick<QueryOptions, 'limit'>) {
-  return {
-    refunds: [],
-    paginatorInfo: null,
-    isLoading: false,
-    isLoadingMore: false,
-    error: null,
-    loadMore: () => {},
-    hasMore: false,
-  };
-}
-
-/** @deprecated Refund workflow is admin-only. */
-export function useCreateRefund() {
-  return {
-    createRefundRequest: (_input: unknown) => {},
-    isLoading: false,
-  };
-}
-
-/** @deprecated Digital downloads are out of scope. */
-export const useDownloadableProducts = (_options: Pick<QueryOptions, 'limit'>) => ({
-  downloads: [] as DownloadableFilePaginator['data'],
-  paginatorInfo: null,
-  isLoading: false,
-  isFetching: false,
-  isLoadingMore: false,
-  error: null,
-  loadMore: () => {},
-  hasMore: false,
-});
-
-/** @deprecated Digital downloads are out of scope. */
-export function useGenerateDownloadableUrl() {
-  const { t } = useTranslation('common');
-  return {
-    generateDownloadableUrl: (_id: string) => {
-      toast.info(t('text-digital-downloads-not-available'));
-    },
-  };
-}
-
-/** @deprecated Kolshi has no payment-intent flow yet. */
-export function useOrderPayment() {
-  return {
-    createOrderPayment: (_input: unknown) => {},
-    isLoading: false,
-  };
-}
-
-/** @deprecated Saved cards are out of scope. */
-export function useSavePaymentMethod() {
-  return {
-    savePaymentMethod: (_input: unknown) => {},
-    data: undefined,
-    isLoading: false,
-    error: null,
-  };
-}
-
-/** @deprecated Payment-intent flow is disabled pending webhook rollout. */
-export function useGetPaymentIntentOriginal(_args: { tracking_number: string }) {
-  return {
-    data: undefined,
-    getPaymentIntentQueryOriginal: () => Promise.resolve(),
-    isLoading: false,
-    error: null,
-  };
-}
-
-/** @deprecated Payment-intent flow is disabled pending webhook rollout. */
-export function useGetPaymentIntent(_args: {
-  tracking_number: string;
-  payment_gateway?: string;
-  recall_gateway?: boolean;
-  form_change_gateway?: boolean;
-}) {
-  return {
-    data: undefined,
-    getPaymentIntentQuery: () => Promise.resolve(),
-    isLoading: false,
-    fetchAgain: false,
-    error: null,
-  };
-}
