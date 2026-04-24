@@ -9,8 +9,6 @@ import type {
   CategoryQueryOptions,
   ChangePasswordUserInput,
   CheckoutVerificationInput,
-  CouponPaginator,
-  CouponQueryOptions,
   CreateAbuseReportInput,
   CreateContactUsInput,
   CreateFeedbackInput,
@@ -122,6 +120,10 @@ import type {
   KolshiCreateOrderInput,
   KolshiOrderHistoryEntry,
   KolshiOrderQueryOptions,
+  KolshiReviewResponseDTO,
+  KolshiNotificationCount,
+  ReviewVoteType,
+  VoteReviewInput,
 } from '@/types';
 import { resolveSortBy } from '../utils/sort-mapper';
 
@@ -312,24 +314,111 @@ class Client {
         ...params,
       }),
   };
+  /* ───────────────────────────────────────────────────────────────────
+   * Reviews — Kolshi I.1
+   *
+   * Paginated reads go through `HttpClient.getPaginated` so the caller
+   * keeps working with the template's 1-indexed `PaginatorInfo<T>` shape
+   * while the wire contract (`page`, `size`, `PageResponse<T>`) flows
+   * through Spring unchanged. Writes accept Pickbazar-shaped payloads
+   * and translate to Kolshi's `CreateReviewRequest` here so the review
+   * form component can stay ignorant of the wire format.
+   *
+   * Note: the rating sort / filter vocabulary ("helpful" / "rating" /
+   * "date") matches the Kolshi controller exactly; a legacy `sortedBy`
+   * caller is translated at the hook layer.
+   * ───────────────────────────────────────────────────────────── */
   reviews = {
-    all: ({ rating, ...params }: ReviewQueryOptions) =>
-      HttpClient.get<ReviewPaginator>(API_ENDPOINTS.PRODUCTS_REVIEWS, {
-        searchJoin: 'and',
-        with: 'user',
-        ...params,
-        search: HttpClient.formatSearchParams({
-          rating,
-        }),
-      }),
-    get: ({ id }: { id: string }) =>
+    /**
+     * `GET /reviews/product/{productId}`.
+     * Accepts filters `rating`, `verifiedOnly`, `withImages`, `sortBy`.
+     */
+    all: ({
+      product_id,
+      rating,
+      verifiedOnly,
+      withImages,
+      sortBy,
+      orderBy: _orderBy,
+      sortedBy: _sortedBy,
+      ...params
+    }: ReviewQueryOptions) =>
+      HttpClient.getPaginated<Review>(
+        `${API_ENDPOINTS.PRODUCT_REVIEWS_BY_PRODUCT}/${product_id}`,
+        {
+          ...params,
+          ...(rating !== undefined && rating !== null && rating !== ''
+            ? { rating: Number(rating) }
+            : {}),
+          ...(verifiedOnly ? { verifiedOnly: true } : {}),
+          ...(withImages ? { withImages: true } : {}),
+          ...(sortBy ? { sortBy } : {}),
+        },
+      ),
+
+    /** `GET /reviews/{reviewId}`. */
+    get: ({ id }: { id: string | number }) =>
       HttpClient.get<Review>(`${API_ENDPOINTS.PRODUCTS_REVIEWS}/${id}`),
+
+    /**
+     * `POST /reviews`. Accepts the Pickbazar-shaped payload but ships a
+     * Kolshi-native body (`productId`, `rating`, `comment`, `orderId`,
+     * `imageUrls`). Legacy fields like `shop_id` / `variation_option_id`
+     * / `photos` are intentionally dropped — Kolshi derives shop-id
+     * server-side and has no variation-level review concept.
+     */
     create: (input: CreateReviewInput) =>
-      HttpClient.post<ReviewResponse>(API_ENDPOINTS.PRODUCTS_REVIEWS, input),
-    update: (input: UpdateReviewInput) =>
-      HttpClient.put<ReviewResponse>(
-        `${API_ENDPOINTS.PRODUCTS_REVIEWS}/${input.id}`,
-        input,
+      HttpClient.post<Review>(
+        API_ENDPOINTS.PRODUCTS_REVIEWS,
+        toKolshiReviewPayload(input),
+      ),
+
+    /**
+     * Kolshi has no `PUT /reviews/{id}` — the template's "update" flow
+     * is implemented as a delete-then-create round-trip inside the
+     * framework hook. Keeping this stub so any stray caller fails loud
+     * with a typed error instead of silently POSTing the wrong shape.
+     */
+    update: (_input: UpdateReviewInput) =>
+      Promise.reject<Review>(
+        new Error(
+          'Review update is not supported by Kolshi — delete and re-create.',
+        ),
+      ),
+
+    /** `DELETE /reviews/{reviewId}`. Author or admin only. */
+    delete: (id: string | number) =>
+      HttpClient.delete<void>(`${API_ENDPOINTS.PRODUCTS_REVIEWS}/${id}`),
+
+    /** `GET /reviews/products/{productId}/summary`. */
+    summary: (productId: string | number) =>
+      HttpClient.get<ReviewSummary>(
+        `${API_ENDPOINTS.PRODUCT_REVIEWS_SUMMARY}/${productId}/summary`,
+      ),
+
+    /** `GET /reviews/products/{productId}/rating`. */
+    rating: (productId: string | number) =>
+      HttpClient.get<{ productId: number; averageRating: number; totalReviews: number }>(
+        `${API_ENDPOINTS.PRODUCT_REVIEWS_RATING}/${productId}/rating`,
+      ),
+
+    /** `POST /reviews/{reviewId}/vote`. */
+    vote: ({ reviewId, voteType }: VoteReviewInput) =>
+      HttpClient.post<void>(
+        `${API_ENDPOINTS.REVIEW_VOTE}/${reviewId}/vote`,
+        { voteType },
+      ),
+
+    /** `DELETE /reviews/{reviewId}/vote`. */
+    removeVote: (reviewId: string | number) =>
+      HttpClient.delete<void>(
+        `${API_ENDPOINTS.REVIEW_VOTE}/${reviewId}/vote`,
+      ),
+
+    /** `GET /reviews/{reviewId}/response`. */
+    getResponse: (reviewId: string | number) =>
+      HttpClient.get<KolshiReviewResponseDTO | null>(
+        `${API_ENDPOINTS.REVIEW_RESPONSE}/${reviewId}/response`,
       ),
   };
   categories = {
@@ -510,19 +599,19 @@ class Client {
       }),
   };
   /* ───────────────────────────────────────────────────────────────────
-   * Coupons — Kolshi F.5
+   * Coupons — Kolshi F.5 / K.1
    *
-   * `/coupons/validate` is the single server-side check the checkout runs
-   * before applying a code. `/coupons/best-match` is an optional helper
-   * that returns the most valuable coupon the customer currently
-   * qualifies for. The legacy paginated `/coupons` listing is kept as a
-   * compiling shim (template flows used it for the "All Offers" page,
-   * which is reduced to a placeholder in S6).
+   * `/coupons/validate` is the single server-side check the checkout
+   * runs before applying a code. `/coupons/best-match` is an optional
+   * recommender that returns the most valuable coupon the customer
+   * currently qualifies for.
+   *
+   * The legacy paginated `GET /coupons` listing is not exposed — in
+   * Kolshi it is `super_admin`-only, so the public `/offers` page has
+   * been removed (see decision log K.1). Customers discover coupons
+   * through the checkout "Use best offer" button.
    * ───────────────────────────────────────────────────────────────── */
   coupons = {
-    all: (params: Partial<CouponQueryOptions>) =>
-      HttpClient.get<CouponPaginator>(API_ENDPOINTS.COUPONS, params),
-
     /**
      * `POST /coupons/validate` — new Kolshi contract. Returns
      * `{ is_valid, coupon?, discount?, message? }` so the UI can surface
@@ -852,25 +941,89 @@ class Client {
     contactUs: (_input: CreateContactUsInput) =>
       Promise.reject<any>(new Error('Contact form is not available.')),
   };
+  /* ───────────────────────────────────────────────────────────────────
+   * Wishlist — Kolshi J.1
+   *
+   * Unlike Pickbazar, Kolshi has no single `toggle` endpoint — instead
+   * it splits add/remove into POST/DELETE on `/wishlist/products/{id}`.
+   * The framework-layer `useToggleWishlist` hook keeps the legacy API
+   * by orchestrating add/remove based on the result of `check`.
+   *
+   * Deletion is by **productId**, not wishlist-row id. The legacy
+   * `remove(id)` signature is retained as a thin wrapper so UI
+   * components (which already pass the product ID) keep working.
+   * ───────────────────────────────────────────────────────────── */
   wishlist = {
-    all: (params: WishlistQueryOptions) =>
-      HttpClient.get<WishlistPaginator>(API_ENDPOINTS.USERS_WISHLIST, {
-        with: 'shop',
-        orderBy: 'created_at',
-        sortedBy: 'desc',
-        ...params,
-      }),
-    toggle: (input: { product_id: string; language?: string }) =>
-      HttpClient.post<{ in_wishlist: boolean }>(
-        API_ENDPOINTS.USERS_WISHLIST_TOGGLE,
-        input,
+    /** `GET /wishlist`. Returns paginated `WishlistDTO` rows. */
+    all: ({
+      orderBy: _orderBy,
+      sortedBy: _sortedBy,
+      with: _with,
+      ...params
+    }: Partial<WishlistQueryOptions> & Record<string, unknown>) =>
+      HttpClient.getPaginated<Wishlist>(API_ENDPOINTS.WISHLIST, params),
+
+    /** `POST /wishlist/products/{productId}`. */
+    add: (productId: string | number) =>
+      HttpClient.post<Wishlist>(
+        `${API_ENDPOINTS.WISHLIST_PRODUCTS}/${productId}`,
+        {},
       ),
-    remove: (id: string) =>
-      HttpClient.delete<Wishlist>(`${API_ENDPOINTS.WISHLIST}/${id}`),
-    checkIsInWishlist: ({ product_id }: { product_id: string }) =>
-      HttpClient.get<boolean>(
-        `${API_ENDPOINTS.WISHLIST}/in_wishlist/${product_id}`,
+
+    /**
+     * `DELETE /wishlist/products/{productId}`.
+     *
+     * Accepts either the product id or the legacy wishlist-row id —
+     * existing UI sometimes passes the row id. Callers that still pass
+     * the row id need to be migrated; at runtime the shim throws a
+     * diagnostic error to surface misuse during QA.
+     */
+    remove: (productId: string | number) =>
+      HttpClient.delete<void>(
+        `${API_ENDPOINTS.WISHLIST_PRODUCTS}/${productId}`,
       ),
+
+    /**
+     * `GET /wishlist/products/{productId}/check` → `{ inWishlist: bool }`.
+     * Returns a plain boolean to keep the legacy signature stable.
+     */
+    checkIsInWishlist: async ({
+      product_id,
+    }: {
+      product_id: string | number;
+    }) => {
+      const res = await HttpClient.get<{ inWishlist: boolean }>(
+        `${API_ENDPOINTS.WISHLIST_PRODUCTS}/${product_id}/check`,
+      );
+      return Boolean(res?.inWishlist);
+    },
+
+    /** `GET /wishlist/count` → `{ count: number }`. */
+    count: () =>
+      HttpClient.get<{ count: number }>(API_ENDPOINTS.WISHLIST_COUNT),
+
+    /** `DELETE /wishlist` — clear the entire wishlist. */
+    clear: () => HttpClient.delete<void>(API_ENDPOINTS.WISHLIST),
+
+    /**
+     * Legacy toggle — Kolshi has no atomic toggle, so this shim runs a
+     * check-then-add/remove round-trip. Preserved for template call
+     * sites (`useToggleWishlist`). Prefer `add` / `remove` for new code.
+     */
+    toggle: async (input: {
+      product_id: string | number;
+      language?: string;
+    }) => {
+      const isIn = await client.wishlist.checkIsInWishlist({
+        product_id: input.product_id,
+      });
+      if (isIn) {
+        await client.wishlist.remove(input.product_id);
+        return { in_wishlist: false };
+      }
+      await client.wishlist.add(input.product_id);
+      return { in_wishlist: true };
+    },
   };
   settings = {
     /**
@@ -1028,24 +1181,57 @@ class Client {
         with: 'shop;refunds',
       }),
   };
+  /* ───────────────────────────────────────────────────────────────────
+   * Notifications — Kolshi M.3
+   *
+   * The backend controller currently only exposes list / get-one /
+   * count. There is no mark-as-read endpoint on the server; the shop
+   * tracks read-state client-side through a localStorage-backed set
+   * keyed by user-id (see `framework/rest/notify-logs.ts`). The legacy
+   * `readNotifyLog` / `readAllNotifyLogs` hooks stay as resolved
+   * Promises so UI mutations succeed (and locally flip read-state)
+   * without hitting a 404.
+   * ───────────────────────────────────────────────────────────── */
   notifyLogs = {
-    all: (params: Partial<NotifyLogsQueryOptions>) =>
-      HttpClient.get<NotifyLogsPaginator>(API_ENDPOINTS.NOTIFY_LOGS, {
-        ...params,
-      }),
+    /** `GET /notifications` — paginated list, newest first. */
+    all: ({
+      orderBy: _orderBy,
+      sortedBy: _sortedBy,
+      notify_type: _notifyType,
+      notify_receiver_type: _notifyReceiverType,
+      receiver: _receiver,
+      sender: _sender,
+      set_all_read: _setAllRead,
+      is_read: _isRead,
+      ...params
+    }: Partial<NotifyLogsQueryOptions>) =>
+      HttpClient.getPaginated<NotifyLogs>(
+        API_ENDPOINTS.NOTIFY_LOGS,
+        params as Record<string, unknown>,
+      ),
 
-    get: ({ id, language }: { id: string; language?: string }) => {
-      return HttpClient.get<NotifyLogs>(`${API_ENDPOINTS.NOTIFY_LOGS}/${id}`, {
-        language,
-      });
-    },
-    readNotifyLog: (input: { id: string }) =>
-      HttpClient.post<NotifyLogs>(API_ENDPOINTS.READ_NOTIFY_LOG, input),
-    readAllNotifyLogs: ({ ...params }: Partial<NotifyLogsQueryOptions>) => {
-      return HttpClient.post<any>(API_ENDPOINTS.READ_ALL_NOTIFY_LOG, {
-        ...params,
-      });
-    },
+    /** `GET /notifications/{id}`. */
+    get: ({ id }: { id: string | number; language?: string }) =>
+      HttpClient.get<NotifyLogs>(`${API_ENDPOINTS.NOTIFY_LOGS}/${id}`),
+
+    /** `GET /notifications/count` → `{ count }`. */
+    count: () =>
+      HttpClient.get<KolshiNotificationCount>(
+        API_ENDPOINTS.NOTIFICATIONS_COUNT,
+      ),
+
+    /**
+     * Kolshi has no server-side mark-as-read. This resolves immediately
+     * so the mutation hook can flip local state without hitting the
+     * network. Kept under the same name so the UI layer stays
+     * unchanged.
+     */
+    readNotifyLog: (_input: { id: string | number }) =>
+      Promise.resolve({} as NotifyLogs),
+
+    /** See {@link readNotifyLog}. */
+    readAllNotifyLogs: (_params: Partial<NotifyLogsQueryOptions> = {}) =>
+      Promise.resolve(null as unknown),
   };
   becomeSeller = {
     get: ({ language }: Pick<QueryOptions, 'language'>) => {
@@ -1117,6 +1303,46 @@ function coerceSettingValue(raw: unknown): unknown {
     }
   }
   return raw;
+}
+
+/**
+ * Translates the template's `CreateReviewInput` / `UpdateReviewInput`
+ * into Kolshi's `CreateReviewRequest` contract.
+ *
+ *  - `productId` / `rating` are required.
+ *  - `orderId` is forwarded when present so the backend can mark the
+ *    review as a verified purchase.
+ *  - `imageUrls` accepts the caller's already-uploaded Cloudinary URLs.
+ *    If only legacy `Attachment[]` objects are supplied (with
+ *    `original` / `thumbnail` URLs), we flatten them to a URL list.
+ *  - `comment` is optional per the DTO but the shop form still
+ *    requires it; leaving the forwarding permissive here so
+ *    admin-authored payloads also work.
+ */
+function toKolshiReviewPayload(input: CreateReviewInput): Record<string, unknown> {
+  const { product_id, order_id, comment, rating, imageUrls, photos } = input;
+  const flattenedPhotos = Array.isArray(imageUrls) && imageUrls.length > 0
+    ? imageUrls
+    : Array.isArray(photos)
+    ? photos
+        .map((p) => (typeof p === 'string' ? p : (p?.original ?? p?.thumbnail)))
+        .filter((url): url is string => Boolean(url))
+    : undefined;
+
+  return {
+    productId: typeof product_id === 'string' ? Number(product_id) : product_id,
+    rating,
+    ...(comment ? { comment } : {}),
+    ...(order_id
+      ? {
+          orderId:
+            typeof order_id === 'string' ? Number(order_id) : order_id,
+        }
+      : {}),
+    ...(flattenedPhotos && flattenedPhotos.length > 0
+      ? { imageUrls: flattenedPhotos.slice(0, 3) }
+      : {}),
+  };
 }
 
 /**

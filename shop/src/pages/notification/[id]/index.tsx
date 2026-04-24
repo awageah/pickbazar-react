@@ -15,30 +15,23 @@ import { GetServerSideProps } from 'next';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { useRouter } from 'next/router';
-import { useSettings } from '@/framework/settings';
-import { FeatureNotAvailable } from '@/components/common/feature-not-available';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+/**
+ * Kolshi M.3 — notification detail. Opening this page implicitly
+ * marks the notification as read (the `useNotifyLog` hook calls
+ * `markRead(id)` once the fetch resolves). No server call is made;
+ * read-state is client-only (see `useNotificationReadStore`).
+ */
 const NotifyLogPage = () => {
   const { t } = useTranslation('common');
   const { query } = useRouter();
-  const { settings } = useSettings();
   const { notification, isLoading } = useNotifyLog({
     id: query?.id as string,
   });
-
-  if (!Boolean(settings?.enableEmailForDigitalProduct)) {
-    return (
-      <Card className="w-full shadow-none sm:shadow flex flex-col">
-        <div className="m-auto">
-          <FeatureNotAvailable />
-        </div>
-      </Card>
-    );
-  }
 
   return (
     <Card className="w-full shadow-none sm:shadow flex flex-col">
@@ -61,6 +54,11 @@ const NotifyLogPage = () => {
           </div>
           {notification ? (
             <>
+              {notification?.subject ? (
+                <h2 className="mb-4 text-lg font-semibold text-heading">
+                  {notification.subject}
+                </h2>
+              ) : null}
               <ul className="group mb-7 flex flex-col space-y-3 text-xs capitalize text-[#666] md:flex-row md:space-y-0 md:space-x-4 md:divide-x md:divide-[#E7E7E7] md:[&>li:not(li:first-child)]:pl-4 [&>li]:flex [&>li]:items-center [&>li]:gap-2">
                 <li>
                   <CalendarGhostIcon className="text-base" />
@@ -71,15 +69,21 @@ const NotifyLogPage = () => {
                     {dayjs(notification?.created_at).format('DD MMM YYYY')}
                   </div>
                 </li>
+                {notification?.type ? (
+                  <li>
+                    <span className="inline-block pr-1 font-semibold">
+                      {t('text-type')} :
+                    </span>
+                    {String(notification.type).replace(/_/g, ' ').toLowerCase()}
+                  </li>
+                ) : null}
               </ul>
 
-              {notification?.notify_text ? (
-                <p className="leading-8 text-base-dark">
-                  {notification?.notify_text}
+              {notification?.body || notification?.notify_text ? (
+                <p className="leading-8 text-base-dark whitespace-pre-line">
+                  {notification?.body ?? notification?.notify_text}
                 </p>
-              ) : (
-                ''
-              )}
+              ) : null}
             </>
           ) : (
             <div className="flex flex-col h-full w-full">

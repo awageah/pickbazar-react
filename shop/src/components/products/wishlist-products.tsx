@@ -1,3 +1,12 @@
+/**
+ * Wishlist products — Kolshi J.1.
+ *
+ * Kolshi's `/wishlist` endpoint returns `WishlistDTO` rows with the
+ * product nested under `.product`. This component previously assumed
+ * the list was already flattened to `Product[]`; we unwrap it here so
+ * the inner `<WishlistItem />` stays unchanged. Remove-from-wishlist
+ * takes the numeric productId (not the wishlist-row id).
+ */
 import ErrorMessage from '@/components/ui/error-message';
 import Image from 'next/image';
 import { useTranslation } from 'next-i18next';
@@ -7,8 +16,12 @@ import { productPlaceholder } from '@/lib/placeholders';
 import NotFound from '@/components/ui/not-found';
 import Rating from '@/components/ui/rating-badge';
 import usePrice from '@/lib/use-price';
-import { useRemoveFromWishlist, useWishlist } from '@/framework/wishlist';
-import type { Product } from '@/types';
+import {
+  useClearWishlist,
+  useRemoveFromWishlist,
+  useWishlist,
+} from '@/framework/wishlist';
+import type { Product, Wishlist } from '@/types';
 import { Routes } from '@/config/routes';
 import dynamic from 'next/dynamic';
 const AddToCart = dynamic(
@@ -143,11 +156,18 @@ const WishlistProducts: React.FC = () => {
   const { t } = useTranslation('common');
   const { wishlists, isLoading, isLoadingMore, error, hasMore, loadMore } =
     useWishlist();
+  const { clearWishlist, isLoading: clearing } = useClearWishlist();
 
   if (error) return <ErrorMessage message={error.message} />;
 
-  // loader
-  if (!wishlists.length && isLoading) {
+  // Unwrap Kolshi `WishlistDTO` rows to their embedded `product`. We
+  // keep the wishlist row id for list keys so stable re-ordering
+  // does not thrash the DOM.
+  const rows = ((wishlists as unknown as Wishlist[]) ?? [])
+    .filter((row): row is Wishlist => Boolean(row?.product))
+    .map((row) => ({ rowId: row.id, product: row.product }));
+
+  if (!rows.length && isLoading) {
     return (
       <div className="flex w-full flex-col">
         <div className="mb-8 flex items-center justify-center sm:mb-10">
@@ -162,7 +182,7 @@ const WishlistProducts: React.FC = () => {
     );
   }
 
-  if (!wishlists.length && !isLoading) {
+  if (!rows.length && !isLoading) {
     return (
       <div className="flex w-full flex-col">
         <div className="mb-8 flex items-center justify-between sm:mb-10">
@@ -171,7 +191,7 @@ const WishlistProducts: React.FC = () => {
           </h1>
         </div>
         <NotFound
-          text="text-no-download"
+          text="text-no-wishlist-items"
           className="mx-auto w-full md:w-7/12"
         />
       </div>
@@ -181,13 +201,21 @@ const WishlistProducts: React.FC = () => {
   return (
     <>
       <div className="flex w-full flex-col">
-        <div className="mb-8 flex items-center justify-center sm:mb-10">
+        <div className="mb-8 flex items-center justify-between sm:mb-10">
           <h1 className="text-center text-lg font-semibold text-heading sm:text-xl">
             {t('profile-sidebar-my-wishlist')}
           </h1>
+          <button
+            type="button"
+            className="text-sm font-semibold text-red-500 hover:underline disabled:opacity-50"
+            onClick={() => clearWishlist()}
+            disabled={clearing}
+          >
+            {t('text-clear-all')}
+          </button>
         </div>
-        {wishlists?.map((item: any, index: number) => (
-          <WishlistItem key={index} product={item} />
+        {rows.map(({ rowId, product }) => (
+          <WishlistItem key={String(rowId ?? product.id)} product={product} />
         ))}
       </div>
 

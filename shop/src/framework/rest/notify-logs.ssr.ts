@@ -1,4 +1,12 @@
-import type { NotifyLogsQueryOptions, SettingsQueryOptions } from '@/types';
+/**
+ * Notification page SSR — Kolshi M.3.
+ *
+ * We no longer prefetch the notification list on the server: the list
+ * is user-scoped and the SSR pass has no auth cookie, so any prefetch
+ * would 401 and poison the query cache. Settings are still prefetched
+ * so the layout (header, footer) keeps its shell.
+ */
+import type { SettingsQueryOptions } from '@/types';
 import type { GetStaticProps } from 'next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { QueryClient } from 'react-query';
@@ -11,11 +19,6 @@ export const getStaticProps: GetStaticProps = async ({ locale }) => {
   await queryClient.prefetchQuery(
     [API_ENDPOINTS.SETTINGS, { language: locale }],
     ({ queryKey }) => client.settings.all(queryKey[1] as SettingsQueryOptions),
-  );
-  await queryClient.prefetchQuery(
-    [API_ENDPOINTS.NOTIFY_LOGS, { limit: 20, language: locale }],
-    ({ queryKey }) =>
-      client.notifyLogs.all(queryKey[1] as NotifyLogsQueryOptions),
   );
   try {
     return {

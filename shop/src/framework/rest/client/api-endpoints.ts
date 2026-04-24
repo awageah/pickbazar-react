@@ -31,12 +31,19 @@ export const API_ENDPOINTS = {
   CATEGORIES_TREE: '/categories/tree',
   CATEGORIES_ROOTS: '/categories/roots',
 
-  // ── Reviews ─────────────────────────────────────────────────
+  // ── Reviews (Kolshi /reviews/*) ─────────────────────────────
+  // Base. `POST /reviews` creates a review; `GET /reviews/{id}` reads one;
+  // `DELETE /reviews/{id}` deletes one.
   PRODUCTS_REVIEWS: '/reviews',
-  PRODUCT_REVIEWS_BY_PRODUCT: '/products', // suffix: `/${id}/reviews`
-  PRODUCT_REVIEWS_SUMMARY: '/products', // suffix: `/${id}/reviews/summary`
-  REVIEW_RESPONSE: '/reviews', // suffix: `/${id}/response`
-  REVIEW_VOTE: '/reviews', // suffix: `/${id}/vote`
+  // Paginated list scoped to one product — note **singular** `product` segment.
+  PRODUCT_REVIEWS_BY_PRODUCT: '/reviews/product', // suffix: `/${productId}`
+  // Summary + rating endpoints use **plural** `products`.
+  PRODUCT_REVIEWS_SUMMARY: '/reviews/products', // suffix: `/${productId}/summary`
+  PRODUCT_REVIEWS_RATING: '/reviews/products', // suffix: `/${productId}/rating`
+  // Shop-owner response is nested under the review. Read-only on the shop.
+  REVIEW_RESPONSE: '/reviews', // suffix: `/${reviewId}/response`
+  // Helpful / not-helpful votes.
+  REVIEW_VOTE: '/reviews', // suffix: `/${reviewId}/vote`
 
   // ── Shops ───────────────────────────────────────────────────
   SHOPS: '/shops',
@@ -70,12 +77,24 @@ export const API_ENDPOINTS = {
   USERS_CHANGE_PASSWORD: '/me/password',
   USERS_UPDATE_EMAIL: '/me/profile', // Kolshi has no dedicated email-change endpoint — legacy key kept for compilation only.
 
-  // ── Wishlist ────────────────────────────────────────────────
-  WISHLIST: '/wishlists',
-  USERS_WISHLIST: '/wishlists',
-  USERS_WISHLIST_TOGGLE: '/wishlists/toggle', // legacy — S5 rewires to add/remove endpoints
-  WISHLIST_CHECK: '/wishlists/check',
-  WISHLIST_COUNT: '/wishlists/count',
+  // ── Wishlist (Kolshi /wishlist/*) ───────────────────────────
+  // All wishlist endpoints are **singular** on the backend.
+  //   GET    /wishlist                        → paginated list
+  //   DELETE /wishlist                        → clear entire wishlist
+  //   GET    /wishlist/count                  → `{ count }`
+  //   POST   /wishlist/products/{productId}   → add
+  //   DELETE /wishlist/products/{productId}   → remove
+  //   GET    /wishlist/products/{productId}/check → `{ inWishlist }`
+  WISHLIST: '/wishlist',
+  USERS_WISHLIST: '/wishlist',
+  WISHLIST_PRODUCTS: '/wishlist/products', // suffix: `/${productId}` or `/${productId}/check`
+  WISHLIST_COUNT: '/wishlist/count',
+  // Legacy toggle key — retained as compiling shim until every call site
+  // migrates to the add/remove pair. Points at a route that does not exist
+  // on the backend; the shim in `client.wishlist.toggle` derives the
+  // correct call-site semantics from `isInWishlist` first.
+  USERS_WISHLIST_TOGGLE: '/wishlist/toggle',
+  WISHLIST_CHECK: '/wishlist/products', // suffix: `/${productId}/check`
 
   // ── Cart ────────────────────────────────────────────────────
   CART: '/cart',
@@ -95,22 +114,29 @@ export const API_ENDPOINTS = {
   PAYMENTS_ORDER: '/payments/order',
   PAYMENTS_REFUND: '/payments', // suffix: `/${paymentId}/refund`
 
-  // ── Coupons ─────────────────────────────────────────────────
-  COUPONS: '/coupons',
+  // ── Coupons — Kolshi F.5 / K.1 ──────────────────────────────
+  // The bare `GET /coupons` listing and the admin-scoped
+  // `GET /coupons/{id}/usages` endpoint are intentionally omitted:
+  // they are `super_admin` only on Kolshi, and the public "/offers"
+  // page has been retired (see decision log K.1). The shop reaches
+  // coupons only via the checkout validate / best-match flow.
   COUPONS_VALIDATE: '/coupons/validate',
   COUPONS_BEST_MATCH: '/coupons/best-match',
-  COUPONS_USAGES: '/coupons', // suffix: `/${id}/usages`
-  COUPONS_VERIFY: '/coupons/validate', // legacy alias; S4 migrates to COUPONS_VALIDATE
 
   // ── Withdrawals ─────────────────────────────────────────────
   WITHDRAWALS: '/withdrawals',
   WITHDRAWALS_PENDING: '/admin/withdrawals/pending',
 
   // ── Notifications / settings / system ───────────────────────
+  // Kolshi only exposes list / get-one / count. There is NO mark-as-read
+  // endpoint; the shop tracks read-state client-side (localStorage per
+  // user). The legacy READ_* keys are kept as namespaced markers so
+  // helpers in `framework/rest/notify-logs.ts` stay grep-able, but they
+  // never hit the wire.
   NOTIFY_LOGS: '/notifications',
-  READ_NOTIFY_LOG: '/notifications', // suffix: `/${id}/read`
-  READ_ALL_NOTIFY_LOG: '/notifications/read-all',
   NOTIFICATIONS_COUNT: '/notifications/count',
+  READ_NOTIFY_LOG: '__client_only__/notifications/read',
+  READ_ALL_NOTIFY_LOG: '__client_only__/notifications/read-all',
   NOTIFICATIONS_FAILED: '/notifications/failed',
   NOTIFICATIONS_DEAD_LETTER: '/notifications/dead-letter',
   NOTIFICATIONS_STATS: '/notifications/stats',

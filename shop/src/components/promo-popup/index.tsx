@@ -77,22 +77,28 @@ const PromoPopup = () => {
               )}
             </div>
 
-            <div
-              className={classNames(
-                'md:col-span-1 order-1 relative md:order-2 col-span-full bg-gray-50 h-72 md:h-[28.125rem]',
-              )}
-            >
-              <Image
-                src={popupData?.image?.original}
-                alt={popupData?.title}
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                fill
-                quality={100}
-                style={{
-                  objectFit: 'contain',
-                }}
-              />
-            </div>
+            {/* Kolshi K.5 — image column is conditional. Kolshi admins may
+                enable the promo popup without uploading an image (the image
+                asset is an optional platform setting), so rendering only
+                happens when a URL is present to avoid a Next/Image error. */}
+            {popupData?.image?.original ? (
+              <div
+                className={classNames(
+                  'md:col-span-1 order-1 relative md:order-2 col-span-full bg-gray-50 h-72 md:h-[28.125rem]',
+                )}
+              >
+                <Image
+                  src={popupData?.image?.original}
+                  alt={popupData?.title ?? ''}
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  fill
+                  quality={100}
+                  style={{
+                    objectFit: 'contain',
+                  }}
+                />
+              </div>
+            ) : null}
           </div>
         )}
       </div>

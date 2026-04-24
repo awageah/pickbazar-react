@@ -1,4 +1,12 @@
-// Import React and React Query
+/**
+ * Notification context — Kolshi M.3.
+ *
+ * Binds the shared notification query once per authenticated session
+ * so the header bell and the notifications page share the same
+ * paginated cache. Sorting is server-side (Kolshi returns newest
+ * first by default), so legacy `orderBy` / `sortedBy` parameters are
+ * dropped.
+ */
 import { useNotifyLogs } from '@/framework/notify-logs';
 import { NotifyLogs } from '@/types';
 import React, { createContext, useContext } from 'react';
@@ -12,23 +20,18 @@ type NotificationProps = {
   loadMore: () => void;
 };
 
-// Create a custom context
 export const NotificationContext = createContext<NotificationProps | undefined>(
   undefined,
 );
 
-// Create a custom context provider component
 export const NotificationProvider = ({
   children,
 }: {
   children: React.ReactNode;
 }) => {
-  // Use the useNotifyLogs hook to fetch notification data
   const { notifyLogs, isLoading, isLoadingMore, hasMore, error, loadMore } =
     useNotifyLogs({
       limit: 7,
-      sortedBy: 'DESC',
-      orderBy: 'created_at',
     });
 
   // Return the context provider component with the query client and the notification query data

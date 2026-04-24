@@ -1,3 +1,19 @@
+/**
+ * Header notification bell — Kolshi M.3.
+ *
+ * The unread indicator combines two signals:
+ *   1. `/notifications/count` (server, rolling 30-day count) gives the
+ *      ceiling — any count > 0 means there's at least one notification
+ *      to look at.
+ *   2. The client-side read set filters previously-read items out of
+ *      the dot. If the user has opened every currently-cached item,
+ *      the dot disappears even when the server count is > 0 (e.g.
+ *      notifications older than the current page window).
+ *
+ * "Mark all as read" simply marks every currently-cached notification
+ * as read locally; Kolshi has no server endpoint for this (see
+ * `useNotifyLogAllRead`).
+ */
 import { NotificationIcon } from '@/components/icons/notification';
 import NotificationLists from '@/components/notifications/notification-lists';
 import Link from '@/components/ui/link';
@@ -7,8 +23,10 @@ import { useModalAction } from '@/components/ui/modal/modal.context';
 import Scrollbar from '@/components/ui/scrollbar';
 import { Routes } from '@/config/routes';
 import { useNotification } from '@/context/notify-content';
-import { useNotifyLogAllRead } from '@/framework/notify-logs';
-import { useUser } from '@/framework/user';
+import {
+  useNotificationCount,
+  useNotifyLogAllRead,
+} from '@/framework/notify-logs';
 import { RESPONSIVE_WIDTH } from '@/lib/constants';
 import rangeMap from '@/lib/range-map';
 import { NotifyLogs } from '@/types';
@@ -40,24 +58,25 @@ const HeaderNotification: React.FC<HeaderNotificationProps> = ({
   }, [data?.notifyLogs]);
 
   const unReadNotification = useMemo(() => {
-    return notifications?.filter((item: NotifyLogs) => !Boolean(item?.is_read));
+    return (notifications ?? []).filter(
+      (item: NotifyLogs) => !Boolean(item?.is_read),
+    );
   }, [notifications]);
+
+  const { count: serverUnreadCount } = useNotificationCount();
+  const hasUnread =
+    unReadNotification.length > 0 || serverUnreadCount > 0;
 
   const { width } = useWindowSize();
 
   const { mutate: readAllNotifyLogs, isLoading: creating } =
     useNotifyLogAllRead();
 
-  const { me } = useUser();
-
   const markAllAsRead = useCallback(() => {
-    return readAllNotifyLogs({
-      set_all_read: true,
-      notify_type: 'product_update',
-      // @ts-ignore
-      receiver: me?.id as string,
-    });
-  }, []);
+    // Kolshi has no server "mark all as read" endpoint — the hook
+    // flips the local read set in-memory and persists it in localStorage.
+    readAllNotifyLogs();
+  }, [readAllNotifyLogs]);
 
   return isEnable ? (
     isAuthorize ? (
@@ -65,7 +84,7 @@ const HeaderNotification: React.FC<HeaderNotificationProps> = ({
         <MenuBox
           Icon={NotificationIcon}
           iconClassName={
-            !isEmpty(unReadNotification)
+            hasUnread
               ? 'before:absolute before:top-0 before:right-0 before:h-2 before:w-2 before:rounded-full before:bg-accent'
               : ''
           }
@@ -150,7 +169,7 @@ const HeaderNotification: React.FC<HeaderNotificationProps> = ({
           className={twMerge(
             classNames(
               'h-[2.375rem] relative w-[2.375rem] rounded-full border border-border-200 bg-light p-1 text-xl flex',
-              !isEmpty(unReadNotification)
+              hasUnread
                 ? 'before:absolute before:top-0 before:right-0 before:h-2 before:w-2 before:rounded-full before:bg-accent'
                 : '',
             ),

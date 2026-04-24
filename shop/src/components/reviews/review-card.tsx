@@ -1,19 +1,40 @@
-import { useTranslation } from 'next-i18next';
-import { Menu, Transition } from '@headlessui/react';
-import { Fragment } from 'react';
+/**
+ * Review card — Kolshi I.1 adaptation.
+ *
+ * Kolshi-native review shape adds:
+ *   - `helpfulCount` / `notHelpfulCount` / `currentUserVote` → mapped
+ *     onto the legacy "feedback" UI (like / dislike). Voting posts to
+ *     `POST /reviews/{id}/vote` via `useVoteReview` and is idempotent;
+ *     the same vote cast twice is ignored by the backend.
+ *   - `imageUrls` (string[]) → rendered as the review photo strip. The
+ *     legacy `photos` Attachment[] is still honoured for backward
+ *     compatibility.
+ *   - `isVerifiedPurchase` → shows the checkmark next to the name when
+ *     the Kolshi DTO confirms the reviewer purchased the product.
+ *   - `customerName` → displayed as the reviewer name (falls back to
+ *     the legacy `user.name`).
+ *   - `response` (ReviewResponseDTO) → rendered inline below the review
+ *     as a read-only shop-owner reply. Kolshi has no public endpoint
+ *     for customers to reply to a shop owner response, so there are
+ *     no actions on this surface.
+ *
+ * Removed surfaces:
+ *   - "Report abuse" menu (I.6 Delete — Kolshi has no abuse endpoint).
+ */
 import cn from 'classnames';
-import Rating from '@/components/ui/rating-badge';
 import dayjs from 'dayjs';
+import { useTranslation } from 'next-i18next';
+import Rating from '@/components/ui/rating-badge';
 import { Image } from '@/components/ui/image';
 import { CheckedIcon } from '@/components/icons/checked';
 import { LikeIcon } from '@/components/icons/like-icon';
-import { MenuIcon } from '@/components/icons/menu-icon';
 import { DislikeIcon } from '@/components/icons/dislike-icon';
 import { productPlaceholder } from '@/lib/placeholders';
-import { useCreateFeedback } from '@/framework/product';
-import type { Review } from '@/types';
 import { useModalAction } from '@/components/ui/modal/modal.context';
 import { useUser } from '@/framework/user';
+import type { Review } from '@/types';
+import { useRemoveReviewVote, useVoteReview } from '@/framework/review';
+
 type ReviewCardProps = {
   review: Review;
 };
@@ -21,45 +42,55 @@ type ReviewCardProps = {
 export default function ReviewCard({ review }: ReviewCardProps) {
   const { t } = useTranslation('common');
   const { openModal } = useModalAction();
-  const { createFeedback } = useCreateFeedback();
   const { isAuthorized } = useUser();
+  const { voteReview } = useVoteReview(review?.productId);
+  const { removeVote } = useRemoveReviewVote(review?.productId);
 
   const {
     id,
     comment,
     rating,
-    photos,
     created_at,
     user,
-    negative_feedbacks_count,
+    customerName,
+    isVerifiedPurchase,
+    helpfulCount,
+    notHelpfulCount,
+    currentUserVote,
+    imageUrls,
+    photos,
+    response,
     positive_feedbacks_count,
-    my_feedback,
+    negative_feedbacks_count,
   } = review;
-  function feedback(value: { positive: boolean } | { negative: boolean }) {
+
+  const displayName = customerName ?? user?.name ?? t('text-anonymous');
+  const likeCount = helpfulCount ?? positive_feedbacks_count ?? 0;
+  const dislikeCount = notHelpfulCount ?? negative_feedbacks_count ?? 0;
+  const didVoteHelpful = currentUserVote === 'HELPFUL';
+  const didVoteNotHelpful = currentUserVote === 'NOT_HELPFUL';
+
+  const galleryImages = buildGalleryImages(imageUrls, photos);
+
+  const handleVote = (voteType: 'HELPFUL' | 'NOT_HELPFUL') => {
     if (!isAuthorized) {
       openModal('LOGIN_VIEW');
       return;
     }
-    createFeedback({
-      model_id: id,
-      model_type: 'Review',
-      ...value,
-    });
-  }
-  function openAbuseReportModal() {
-    if (!isAuthorized) {
-      openModal('LOGIN_VIEW');
+    const alreadySelected =
+      (voteType === 'HELPFUL' && didVoteHelpful) ||
+      (voteType === 'NOT_HELPFUL' && didVoteNotHelpful);
+
+    if (alreadySelected) {
+      removeVote(id);
       return;
     }
-    openModal('ABUSE_REPORT', {
-      model_id: id,
-      model_type: 'Review',
-    });
-  }
+    voteReview({ reviewId: id, voteType });
+  };
 
   const handleImageClick = (idx: number) => {
     openModal('REVIEW_IMAGE_POPOVER', {
-      images: photos,
+      images: galleryImages,
       initSlide: idx,
     });
   };
@@ -69,21 +100,23 @@ export default function ReviewCard({ review }: ReviewCardProps) {
       <Rating rating={rating} className="mb-2.5" />
       <div className="mb-4 flex items-center text-xs text-gray-500">
         {t('text-by')}{' '}
-        <span className="capitalize ltr:ml-1 rtl:mr-1">{user?.name}</span>
-        <CheckedIcon className="h-[13px] w-[13px] text-gray-700 ltr:ml-1 rtl:mr-1" />
+        <span className="capitalize ltr:ml-1 rtl:mr-1">{displayName}</span>
+        {isVerifiedPurchase ? (
+          <CheckedIcon className="h-[13px] w-[13px] text-gray-700 ltr:ml-1 rtl:mr-1" />
+        ) : null}
       </div>
       <p className="text-base leading-7 text-heading">{comment}</p>
 
-      <div className="space-s-2 flex items-start pt-3">
-        {photos?.map((photo, idx) => (
+      <div className="space-s-2 flex items-start pt-3 flex-wrap">
+        {galleryImages.map((photo, idx) => (
           <div
             className="m-1.5 cursor-pointer"
             key={photo.id}
             onClick={() => handleImageClick(idx)}
           >
             <Image
-              src={photo.thumbnail ?? productPlaceholder}
-              alt={user.name ?? ''}
+              src={photo.thumbnail ?? photo.original ?? productPlaceholder}
+              alt={displayName ?? ''}
               width={80}
               height={80}
               className="inline-flex rounded-md bg-gray-200 object-contain"
@@ -92,76 +125,83 @@ export default function ReviewCard({ review }: ReviewCardProps) {
         ))}
       </div>
 
+      {response ? (
+        <div className="mt-4 rounded-md bg-gray-50 p-4 border border-gray-100">
+          <div className="mb-1 flex items-center text-xs font-semibold text-gray-600">
+            <span className="uppercase tracking-wide">
+              {t('text-shop-owner-response') ?? 'Shop owner response'}
+            </span>
+            {response.shopOwnerName ? (
+              <span className="ml-2 font-normal text-gray-500">
+                {`— ${response.shopOwnerName}`}
+              </span>
+            ) : null}
+          </div>
+          <p className="text-sm leading-6 text-heading whitespace-pre-line">
+            {response.responseText}
+          </p>
+          {response.createdAt ? (
+            <div className="mt-2 text-[11px] text-gray-400">
+              {dayjs(response.createdAt).format('MMMM D, YYYY')}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="flex items-center justify-between">
         <div className="mt-3.5 text-xs text-gray-400">
           {t('text-date')}: {dayjs(created_at).format('MMMM D, YYYY')}
         </div>
         <div className="flex items-center space-x-6 rtl:space-x-reverse">
           <button
-            className="flex items-center text-xs tracking-wider text-gray-400 transition"
-            disabled={my_feedback?.positive}
-            onClick={() => feedback({ positive: true })}
+            className="flex items-center text-xs tracking-wider text-gray-400 transition hover:text-accent"
+            onClick={() => handleVote('HELPFUL')}
+            aria-pressed={didVoteHelpful}
           >
             <LikeIcon
               className={cn('h-4 w-4 ltr:mr-1.5 rtl:ml-1.5', {
-                'text-accent': my_feedback?.positive,
+                'text-accent': didVoteHelpful,
               })}
             />
-            {positive_feedbacks_count}
+            {likeCount}
           </button>
           <button
-            className="flex items-center text-xs tracking-wider text-gray-400 transition"
-            onClick={() => feedback({ negative: true })}
-            disabled={my_feedback?.negative}
+            className="flex items-center text-xs tracking-wider text-gray-400 transition hover:text-accent"
+            onClick={() => handleVote('NOT_HELPFUL')}
+            aria-pressed={didVoteNotHelpful}
           >
             <DislikeIcon
               className={cn('h-4 w-4 ltr:mr-1.5 rtl:ml-1.5', {
-                'text-accent': my_feedback?.negative,
+                'text-accent': didVoteNotHelpful,
               })}
             />
-            {negative_feedbacks_count}
+            {dislikeCount}
           </button>
-
-          <Menu
-            as="div"
-            className="relative inline-block ltr:text-left rtl:text-right"
-          >
-            <Menu.Button className="group p-2">
-              <MenuIcon className="text-gray-400 transition-colors group-hover:text-accent" />
-            </Menu.Button>
-            <Transition
-              as={Fragment}
-              enter="transition ease-out duration-100"
-              enterFrom="transform opacity-0 scale-95"
-              enterTo="transform opacity-100 scale-100"
-              leave="transition ease-in duration-75"
-              leaveFrom="transform opacity-100 scale-100"
-              leaveTo="transform opacity-0 scale-95"
-            >
-              <Menu.Items
-                as="ul"
-                className={cn(
-                  'absolute mt-2 w-48 overflow-hidden rounded border border-border-200 bg-light py-2 shadow-700 focus:outline-none ltr:right-0 ltr:origin-top-right rtl:left-0 rtl:origin-top-left',
-                )}
-              >
-                <Menu.Item>
-                  {({ active }) => (
-                    <button
-                      onClick={openAbuseReportModal}
-                      className={cn(
-                        'flex w-full items-center space-x-4 px-5 py-2.5 text-sm font-semibold capitalize transition duration-200 hover:text-accent focus:outline-0 rtl:space-x-reverse',
-                        active ? 'text-accent' : 'text-body',
-                      )}
-                    >
-                      {t('text-report-abuse')}
-                    </button>
-                  )}
-                </Menu.Item>
-              </Menu.Items>
-            </Transition>
-          </Menu>
         </div>
       </div>
     </div>
   );
+}
+
+/**
+ * Merges Kolshi's `imageUrls: string[]` with the legacy
+ * `photos: Attachment[]` into a single display list. Kolshi-native
+ * URLs win when both are present.
+ */
+function buildGalleryImages(
+  imageUrls: string[] | undefined,
+  photos: Review['photos'],
+): Array<{ id: string | number; original?: string; thumbnail?: string }> {
+  if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+    return imageUrls.map((url, idx) => ({
+      id: `kolshi-${idx}`,
+      original: url,
+      thumbnail: url,
+    }));
+  }
+  return (photos ?? []).map((photo) => ({
+    id: photo.id ?? `${photo.thumbnail ?? photo.original}`,
+    original: photo.original,
+    thumbnail: photo.thumbnail,
+  }));
 }

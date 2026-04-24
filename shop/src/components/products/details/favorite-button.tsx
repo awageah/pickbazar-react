@@ -13,7 +13,9 @@ function FavoriteButton({
   className,
   variant = 'default',
 }: {
-  productId: string;
+  // Kolshi J.1 — product ids are numeric; keep `string` to avoid
+  // breaking template call sites that still stringify the id.
+  productId: string | number;
   className?: string;
   variant?: 'default' | 'minimal';
 }) {

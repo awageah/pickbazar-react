@@ -116,11 +116,11 @@ const ShopSidebar: React.FC<ShopSidebarProps> = ({
                 )}
               </div>
 
-              {/* Kolshi C.14 — FAQ / terms / coupons tiles removed:
-                  Kolshi coupons are global (not per-shop), and there is
-                  no per-shop FAQ / terms endpoint. Contact + website
-                  tiles remain; the offers page under `/offers` still
-                  exists (adapted to "cheapest products"). */}
+              {/* Kolshi C.14 / K.1 — FAQ / terms / coupons tiles
+                  removed. Kolshi coupons are global (not per-shop),
+                  the public offers page has been retired, and there
+                  is no per-shop FAQ / terms endpoint. Contact and
+                  website tiles remain. */}
               <div className="grid grid-cols-[repeat(auto-fill,minmax(70px,1fr))] text-sm gap-1.5 p-6">
                 <Link
                   href={`/shops/${shop?.slug}${Routes.contactUs}`}

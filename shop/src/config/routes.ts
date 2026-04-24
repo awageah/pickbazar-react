@@ -16,7 +16,15 @@ export const Routes = {
   trackOrder: '/track-order',
   help: '/help',
   logout: '/logout',
-  coupons: '/offers',
+  /**
+   * Kolshi K.1 — the public `/offers` page has been removed. Kolshi
+   * only exposes coupon listing as a `super_admin` admin-panel
+   * endpoint; customers discover coupons at checkout through the
+   * "Use best offer" flow (see `settings.ts#useBestMatchCoupon`).
+   * Kept as `'#'` so stray legacy references compile but navigate
+   * to nothing.
+   */
+  coupons: '#',
   products: '/products',
   product: (slug: string) => `/products/${encodeURIComponent(slug)}`,
   privacy: '/privacy',

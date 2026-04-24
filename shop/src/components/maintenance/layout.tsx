@@ -108,27 +108,76 @@ const Maintenance = ({ children }: MaintenanceProps) => {
   let seenPopup = Cookies.get(NEWSLETTER_POPUP_MODAL_KEY);
   let seenReviewPopup = Cookies.get(REVIEW_POPUP_MODAL_KEY);
 
-  // Use useCallback to avoid creating new functions on every render
+  /*
+   * Kolshi K.5 — promo (newsletter) popup.
+   *
+   * The popup is opt-in through three platform settings:
+   *   - `promo.popup.enabled`       (boolean) → replaces legacy `isPromoPopUp`
+   *   - `promo.popup.delay_ms`      (integer, default 4000)
+   *   - `promo.popup.image_url`     (string)
+   *   - `promo.popup.title`         (string)
+   *   - `promo.popup.description`   (string)
+   *
+   * If none of these are populated by the admin, the popup stays
+   * disabled (Kolshi has no newsletter subscription backend yet — see
+   * decision log K.5). We fall back to the legacy key names so any
+   * admin that retains them keeps the same behaviour.
+   */
+  const promoPopupEnabled =
+    Boolean((settings as any)?.promo?.popup?.enabled) ||
+    Boolean((settings as any)?.['promo.popup.enabled']) ||
+    Boolean(settings?.isPromoPopUp);
+
+  const promoPopupDelay = Math.max(
+    0,
+    Number(
+      (settings as any)?.promo?.popup?.delay_ms ??
+        (settings as any)?.['promo.popup.delay_ms'] ??
+        settings?.promoPopup?.popUpDelay ??
+        4000,
+    ),
+  );
+
+  const promoPopupData = useMemo(
+    () =>
+      settings?.promoPopup ?? {
+        title:
+          (settings as any)?.promo?.popup?.title ??
+          (settings as any)?.['promo.popup.title'],
+        description:
+          (settings as any)?.promo?.popup?.description ??
+          (settings as any)?.['promo.popup.description'],
+        image: {
+          original:
+            (settings as any)?.promo?.popup?.image_url ??
+            (settings as any)?.['promo.popup.image_url'],
+        },
+        popUpDelay: promoPopupDelay,
+      },
+    [settings, promoPopupDelay],
+  );
+
   const handlePromoPopup = useCallback(() => {
     if (
-      Boolean(settings?.isPromoPopUp) &&
+      promoPopupEnabled &&
       !underMaintenanceStart &&
       !AccessAdminRoles &&
       !Boolean(seenPopup)
     ) {
-      let timer = setTimeout(
+      const timer = setTimeout(
         () =>
           openModal('PROMO_POPUP_MODAL', {
             isLoading: settingLoading,
-            popupData: settings?.promoPopup,
+            popupData: promoPopupData,
           }),
-        Number(settings?.promoPopup?.popUpDelay),
+        promoPopupDelay,
       );
       return () => clearTimeout(timer);
     }
   }, [
-    settings?.isPromoPopUp,
-    settings?.promoPopup?.popUpDelay,
+    promoPopupEnabled,
+    promoPopupDelay,
+    promoPopupData,
     underMaintenanceStart,
     AccessAdminRoles,
     settingLoading,

@@ -10,25 +10,20 @@ import { NotifyLogs } from '@/types';
 import { isEmpty } from 'lodash';
 import Button from '@/components/ui/button';
 import { useTranslation } from 'next-i18next';
-import { useSettings } from '@/framework/settings';
-import { FeatureNotAvailable } from '@/components/common/feature-not-available';
 export { getStaticProps } from '@/framework/notify-logs.ssr';
 
+/**
+ * Kolshi M.3 — notifications page.
+ *
+ * The legacy `settings.enableEmailForDigitalProduct` gate was a
+ * Pickbazar hack (it piggy-backed on an unrelated email toggle to hide
+ * the entire notifications surface). Kolshi exposes notifications to
+ * every authenticated customer; the gate has been removed.
+ */
 export default function NotifyLogsPage() {
   const limit: number = 6;
   const data = useNotification();
   const { t } = useTranslation();
-  const { settings } = useSettings();
-
-  if (!Boolean(settings?.enableEmailForDigitalProduct)) {
-    return (
-      <Card className="w-full shadow-none sm:shadow flex flex-col">
-        <div className="m-auto">
-          <FeatureNotAvailable />
-        </div>
-      </Card>
-    );
-  }
 
   if (data?.error) return <ErrorMessage message={data?.error?.message} />;
 

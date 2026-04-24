@@ -24,6 +24,10 @@ const offerSliderBreakpoints = {
 
 export default function PromotionSlider({ sliders }: { sliders: any[] }) {
   const { t } = useTranslation();
+  // Kolshi K.4 — guard empty arrays so admins can disable the slider
+  // simply by clearing the `promo.sliders` setting without stripping
+  // the layout wrapper.
+  if (!Array.isArray(sliders) || sliders.length === 0) return null;
   return (
     <div className="border-t border-border-200 bg-light px-5 py-5 md:p-8 lg:px-6">
       <div className="relative">

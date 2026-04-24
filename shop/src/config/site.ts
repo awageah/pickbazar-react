@@ -64,9 +64,12 @@ export const siteSettings = {
   // site FAQ & terms (L.x Delete) — are pruned here so the header
   // menu no longer renders their links. The underlying routes still
   // resolve until S6 deletes the page components.
+  // Kolshi K.1 — the "Offers" header entry is removed. Kolshi has no
+  // public coupon-list endpoint (admin-only); customers discover
+  // coupons via the checkout "Use best offer" button. See the feature
+  // decision log under K.1 for rationale.
   headerLinks: [
     { href: Routes.shops, icon: null, label: 'nav-menu-shops' },
-    { href: Routes.coupons, icon: null, label: 'nav-menu-offer' },
     { href: Routes.contactUs, label: 'nav-menu-contact' },
   ],
   footer: {
@@ -87,10 +90,6 @@ export const siteSettings = {
           {
             name: 'Shops',
             href: Routes.shops,
-          },
-          {
-            name: 'Coupon',
-            href: Routes.coupons,
           },
         ],
       },

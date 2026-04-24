@@ -168,10 +168,42 @@ export interface CategoryQueryOptions extends QueryOptions {
   parentId?: string | number;
 }
 
+/**
+ * Review-summary envelope used by the product-detail pages.
+ *
+ * Kolshi returns a richer payload (`ReviewSummaryDTO`) than the legacy
+ * Pickbazar shape: rating breakdown is keyed by 1–5 and augmented with
+ * verified / with-images / with-responses counts. We keep the legacy
+ * fields (`average`, `total`, `breakdown`) required so existing
+ * components keep compiling; the Kolshi-specific fields are optional.
+ */
 export interface ReviewSummary {
   average: number;
   total: number;
   breakdown: Record<1 | 2 | 3 | 4 | 5, number>;
+  verifiedPurchases?: number;
+  withImages?: number;
+  withResponses?: number;
+}
+
+/**
+ * Vote payload accepted by `POST /reviews/{reviewId}/vote`.
+ * Mirrors `com.kolshi.review.enums.VoteType`.
+ */
+export type ReviewVoteType = 'HELPFUL' | 'NOT_HELPFUL';
+
+/**
+ * Shop-owner response embedded on a Kolshi review (read-only on the
+ * shop-frontend — creation/deletion lives on admin).
+ */
+export interface KolshiReviewResponseDTO {
+  id: number | string;
+  reviewId: number | string;
+  shopOwnerId?: number | string;
+  shopOwnerName?: string;
+  responseText: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProductImage {
@@ -266,9 +298,19 @@ export interface OrderQueryOptions extends QueryOptions {
   orderBy: string;
 }
 
+/**
+ * Query options for `GET /reviews/product/{productId}` (Kolshi).
+ *
+ * Legacy fields (`orderBy`, `sortedBy`) are accepted and silently
+ * translated by the client; prefer `sortBy` + native filter flags for
+ * new call sites.
+ */
 export interface ReviewQueryOptions extends QueryOptions {
   product_id: string;
-  rating?: string;
+  rating?: string | number;
+  verifiedOnly?: boolean;
+  withImages?: boolean;
+  sortBy?: 'helpful' | 'rating' | 'date';
   orderBy?: string;
   sortedBy?: string;
 }
@@ -575,22 +617,47 @@ export interface VerifyCouponResponse {
   message?: string;
 }
 
+/**
+ * Review creation payload.
+ *
+ * Kolshi contract (`POST /reviews`):
+ *   { productId, rating (1-5), comment?, orderId?, imageUrls?: string[] }
+ *
+ * We keep the legacy Pickbazar fields (`shop_id`, `variation_option_id`,
+ * `photos: Attachment[]`) optional so the template's review form keeps
+ * compiling; the client adapter translates to the Kolshi payload.
+ */
 export interface CreateReviewInput {
-  product_id: string;
-  shop_id: string;
-  order_id: string;
-  variation_option_id: string;
+  product_id: string | number;
+  shop_id?: string | number;
+  order_id?: string | number;
+  variation_option_id?: string | number;
   comment?: string;
   rating: number;
   photos?: Attachment[];
+  imageUrls?: string[];
 }
 
 export interface UpdateReviewInput extends CreateReviewInput {
-  id: string;
+  id: string | number;
 }
 
+/**
+ * Legacy stub preserved so compile targets that still import
+ * `ReviewResponse` keep working. Not returned by any Kolshi endpoint
+ * — use `KolshiReviewResponseDTO` for the real shop-owner reply.
+ */
 export interface ReviewResponse {
   product_id: string;
+}
+
+/**
+ * Vote on a review. `reviewId` is injected path-side by the client.
+ * `voteType === null` is the sentinel used by `removeVote`.
+ */
+export interface VoteReviewInput {
+  reviewId: string | number;
+  voteType: ReviewVoteType;
 }
 
 export interface CreateRefundInput {
@@ -980,21 +1047,45 @@ export interface PaymentIntentCollection {
   payment_gateway?: string;
 }
 
+/**
+ * Kolshi returns a flat `ReviewDTO` (no nested `product`/`shop`/`user`
+ * objects) plus `response` for the shop-owner reply and vote counters.
+ * The shop UI still reads some of the legacy keys (`photos`,
+ * `positive_feedbacks_count`, etc.) so we keep them as **optional**
+ * and provide Kolshi-native twins side-by-side. The `adaptReview`
+ * helper in `framework/rest/review.ts` copies Kolshi values into the
+ * legacy keys so existing components keep rendering without changes.
+ */
 export interface Review {
-  id: string;
-  name: string;
+  id: string | number;
+  name?: string;
   rating: number;
   comment: string;
-  photos: Attachment[];
-  user: User;
-  product: Product;
-  shop: Shop;
-  feedbacks: Feedback[];
-  positive_feedbacks_count: number;
-  negative_feedbacks_count: number;
-  my_feedback: Feedback;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
+
+  // ── Kolshi-native ───────────────────────────────────────────────────
+  productId?: number | string;
+  productName?: string;
+  customerId?: number | string;
+  customerName?: string;
+  isVerifiedPurchase?: boolean;
+  imageUrls?: string[];
+  response?: KolshiReviewResponseDTO | null;
+  helpfulCount?: number;
+  notHelpfulCount?: number;
+  currentUserVote?: ReviewVoteType | null;
+  createdAt?: string;
+
+  // ── Legacy Pickbazar shape (kept optional for compile-compat) ───────
+  photos?: Attachment[];
+  user?: User;
+  product?: Product;
+  shop?: Shop;
+  feedbacks?: Feedback[];
+  positive_feedbacks_count?: number;
+  negative_feedbacks_count?: number;
+  my_feedback?: Feedback;
 }
 
 export interface Question {
@@ -1038,12 +1129,22 @@ export interface VerifiedCheckoutData {
   wallet_amount?: number;
 }
 
+/**
+ * Wishlist item.
+ *
+ * Kolshi's `WishlistDTO` is `{ id, userId, product, createdAt }` — we
+ * keep the legacy `product_id` / `user_id` fields so existing selectors
+ * keep compiling; the client adapter back-fills them from the nested
+ * `product`.
+ */
 export interface Wishlist {
-  id: string;
+  id: string | number;
   product: Product;
-  product_id: string;
-  user: User[];
-  user_id: string;
+  product_id?: string | number;
+  user?: User[];
+  user_id?: string | number;
+  userId?: string | number;
+  createdAt?: string;
 }
 
 export interface UserAddress {
@@ -1218,28 +1319,64 @@ export interface WishlistPaginator extends PaginatorInfo<Wishlist> {}
 
 export interface FlashSalePaginator extends PaginatorInfo<FlashSale> {}
 
+/**
+ * Notification record.
+ *
+ * Kolshi's `NotificationDTO` ships with a structured `type` /
+ * `channel` / `status` triplet plus `subject` / `body`. The shop UI
+ * reads `notify_text`/`is_read`/`created_at` — we alias those onto
+ * the Kolshi fields in the adapter (`adaptNotification`) so every
+ * render path keeps working.
+ *
+ * Read state is tracked client-side (localStorage) because the
+ * backend has no mark-as-read endpoint yet. `is_read` is derived from
+ * that local set in `useNotifyLogs`.
+ */
 export interface NotifyLogs {
-  id: string;
-  receiver: string;
-  sender: string;
-  notify_type: string;
-  notify_receiver_type: string;
-  is_read: boolean;
-  notify_text: string;
+  id: string | number;
+  // ── Kolshi-native ───────────────────────────────────────────────────
+  type?: string;
+  channel?: string;
+  status?: string;
+  recipientId?: string | number;
+  recipientEmail?: string | null;
+  recipientPhone?: string | null;
+  subject?: string | null;
+  body?: string | null;
+  entityType?: string | null;
+  entityId?: string | number | null;
+  sentAt?: string | null;
+  errorMessage?: string | null;
+  retryCount?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+
+  // ── Legacy / adapter-derived ────────────────────────────────────────
+  receiver?: string;
+  sender?: string;
+  notify_type?: string;
+  notify_receiver_type?: string;
+  is_read?: boolean;
+  notify_text?: string;
   created_at: string;
 }
 export interface NotifyLogsQueryOptions extends QueryOptions {
-  notify_type: string;
+  notify_type?: string;
   notify_receiver_type?: string;
   sender?: string;
-  receiver: string;
+  receiver?: string | number;
   set_all_read?: boolean;
   is_read?: boolean;
-  orderBy: string;
-  sortedBy: string;
+  orderBy?: string;
+  sortedBy?: string;
 }
 
 export interface NotifyLogsPaginator extends PaginatorInfo<NotifyLogs> {}
+
+/** Shape of `GET /notifications/count` — `{ count }`. */
+export interface KolshiNotificationCount {
+  count: number;
+}
 
 export interface BecomeSellerCommission {
   commission: number;
