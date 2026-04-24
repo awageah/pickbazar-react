@@ -6,22 +6,30 @@ import { useTranslation } from 'next-i18next';
 import { couponAtom } from '@/store/checkout';
 import { useAtom } from 'jotai';
 import classNames from 'classnames';
-import { useVerifyCoupon } from '@/framework/settings';
-import { useCart } from '@/store/quick-cart/cart.context';
+import {
+  useBestMatchCoupon,
+  useVerifyCoupon,
+} from '@/framework/settings';
 
 type FormTypes = {
   code: string;
 };
 
+/**
+ * Coupon entry for the checkout summary.
+ *
+ * Wires `POST /coupons/validate` via `useVerifyCoupon`. Adds a
+ * "use best offer" shortcut backed by `POST /coupons/best-match`
+ * (Kolshi F.5). The legacy `items` / `sub_total` payload is dropped —
+ * Kolshi only needs `{ code, sub_total }` to resolve a coupon.
+ */
 const Coupon = ({ theme, subtotal }: { theme?: 'dark'; subtotal: number }) => {
   const { t } = useTranslation('common');
   const [hasCoupon, setHasCoupon] = useState(false);
-  const [coupon, applyCoupon] = useAtom(couponAtom);
-  const { items, total } = useCart();
+  const [coupon] = useAtom(couponAtom);
   const {
     register,
     handleSubmit,
-    setError,
     formState: { errors },
   } = useForm<FormTypes>();
   const {
@@ -29,41 +37,35 @@ const Coupon = ({ theme, subtotal }: { theme?: 'dark'; subtotal: number }) => {
     isLoading: loading,
     formError,
   } = useVerifyCoupon();
+  const { mutate: fetchBestMatch, isLoading: bestMatchLoading } =
+    useBestMatchCoupon();
+
   if (!hasCoupon && !coupon) {
     return (
-      <p
-        role="button"
-        className="text-xs font-bold transition duration-200 text-body hover:text-accent"
-        onClick={() => setHasCoupon(true)}
-      >
-        {t('text-have-coupon')}
-      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          className="text-xs font-bold transition duration-200 text-body hover:text-accent"
+          onClick={() => setHasCoupon(true)}
+        >
+          {t('text-have-coupon')}
+        </button>
+        <button
+          type="button"
+          disabled={bestMatchLoading || subtotal <= 0}
+          onClick={() => fetchBestMatch({ sub_total: subtotal })}
+          className="text-xs font-semibold text-accent underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {bestMatchLoading
+            ? t('text-checking')
+            : t('text-use-best-coupon')}
+        </button>
+      </div>
     );
   }
-  function onSubmit(code: FormTypes) {
-    // verifyCoupon(
-    //   {
-    //     code,
-    //   }
-    //   // {
-    //   //   onSuccess: (data) => {
-    //   //     if (data.is_valid) {
-    //   //       applyCoupon(data.coupon);
-    //   //       setHasCoupon(false);
-    //   //     } else {
-    //   //       setError('code', {
-    //   //         type: 'manual',
-    //   //         message: 'error-invalid-coupon',
-    //   //       });
-    //   //     }
-    //   //   },
-    //   // }
-    // );
-    const data = verifyCoupon({
-      code: code?.code,
-      sub_total: subtotal,
-      item: items
-    });
+
+  function onSubmit(input: FormTypes) {
+    verifyCoupon({ code: input.code, sub_total: subtotal });
   }
 
   return (
@@ -78,7 +80,7 @@ const Coupon = ({ theme, subtotal }: { theme?: 'dark'; subtotal: number }) => {
         variant="outline"
         className="flex-1 mb-4 sm:mb-0 ltr:sm:mr-4 rtl:sm:ml-4"
         dimension="small"
-        error={t(formError?.code!)}
+        error={t(formError?.code ?? errors.code?.message ?? '')}
       />
       <Button
         loading={loading}

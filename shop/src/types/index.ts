@@ -1383,3 +1383,152 @@ export interface ShopMaintenanceEvent {
   isMaintenance: boolean;
   isShopUnderMaintenance: boolean;
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Kolshi S4 — Cart / Orders / Coupons / Tracking types
+ *
+ * These interfaces model the actual wire format documented in
+ * `KOLSHI_FRONTEND_HANDOFF.md`. Older Pickbazar-era types (`Order`,
+ * `CreateOrderInput`, etc.) are kept above so existing components stay
+ * compilable during the incremental rewrite; Kolshi-native consumers
+ * should prefer the `Kolshi*` variants defined here.
+ * ──────────────────────────────────────────────────────────────────── */
+
+/** Single row inside a server cart as returned by `GET /cart`. */
+export interface KolshiCartItem {
+  id: number | string;
+  product_id: number | string;
+  variation_id?: number | string | null;
+  quantity: number;
+  unit_price: number;
+  sale_price?: number | null;
+  subtotal: number;
+  name?: string;
+  image?: string | null;
+  slug?: string;
+  shop_id?: number | string;
+  shop?: Shop | null;
+  product?: Product | null;
+  variation?: ProductVariation | null;
+  stock?: number;
+  /** Kolshi returns `inStock` from the cart endpoint when available. */
+  in_stock?: boolean;
+  [key: string]: unknown;
+}
+
+/** `GET /cart` / server cart DTO. */
+export interface KolshiCart {
+  id?: number | string;
+  user_id?: number | string;
+  currency?: string;
+  items: KolshiCartItem[];
+  total: number;
+  subtotal?: number;
+  total_items: number;
+  total_unique_items?: number;
+  updated_at?: string;
+  [key: string]: unknown;
+}
+
+/** Input payload for `POST /cart/items`. */
+export interface AddToCartInput {
+  product_id: number | string;
+  variation_id?: number | string;
+  quantity: number;
+}
+
+/** Input payload for `PUT /cart/items/{id}`. */
+export interface UpdateCartItemInput {
+  quantity: number;
+}
+
+/** Input payload for `POST /coupons/validate`. */
+export interface KolshiValidateCouponInput {
+  code: string;
+  sub_total: number;
+  shop_id?: number | string;
+}
+
+/** Response shape for `POST /coupons/validate`. */
+export interface KolshiValidateCouponResponse {
+  is_valid: boolean;
+  message?: string;
+  coupon?: Coupon;
+  discount?: number;
+  discount_type?: 'percentage' | 'fixed' | 'free_shipping';
+}
+
+/** Input payload for `POST /coupons/best-match`. */
+export interface KolshiBestMatchCouponInput {
+  sub_total: number;
+  shop_id?: number | string;
+}
+
+/** Kolshi-native sort keys for orders. */
+export type KolshiOrderSort = 'newest' | 'oldest';
+
+/**
+ * Kolshi order state machine (handoff Flow 4 / 6):
+ *   ORDER_RECEIVED → PROCESSING → AT_LOCAL_FACILITY → OUT_FOR_DELIVERY
+ *   → COMPLETED, or CANCELLED before AT_LOCAL_FACILITY.
+ */
+export enum KolshiOrderStatus {
+  ORDER_RECEIVED = 'ORDER_RECEIVED',
+  PROCESSING = 'PROCESSING',
+  AT_LOCAL_FACILITY = 'AT_LOCAL_FACILITY',
+  OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+}
+
+/** Payment gateways Kolshi actually supports. */
+export enum KolshiPaymentGateway {
+  COD = 'CASH_ON_DELIVERY',
+  STRIPE = 'STRIPE',
+}
+
+/** `POST /orders` payload — customer-driven checkout. */
+export interface KolshiCreateOrderInput {
+  delivery_fee?: number;
+  delivery_time?: string;
+  shipping_address?: string;
+  billing_address?: string;
+  note?: string;
+  coupon_code?: string;
+  payment_gateway: string;
+  customer_contact?: string;
+  customer_name?: string;
+}
+
+/** Single row in the history log for an order. */
+export interface KolshiOrderHistoryEntry {
+  id: number | string;
+  status: string;
+  note?: string | null;
+  created_at: string;
+  actor?: string | null;
+}
+
+/** Response of `GET /tracking/{trackingNumber}?contact=`. */
+export interface KolshiTrackingResponse {
+  tracking_number: string;
+  order_status: string;
+  payment_status?: string;
+  estimated_delivery?: string;
+  history: KolshiOrderHistoryEntry[];
+  shop?: {
+    id: number | string;
+    name: string;
+    slug?: string;
+  } | null;
+}
+
+/** Query params for `GET /orders`. */
+export interface KolshiOrderQueryOptions extends QueryOptions {
+  status?: string;
+  tracking_number?: string;
+  sortBy?: KolshiOrderSort;
+  /** Legacy pass-through — mapped to `sortBy` by the hook layer. */
+  orderBy?: string;
+  sortedBy?: string;
+}

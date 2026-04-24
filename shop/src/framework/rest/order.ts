@@ -1,14 +1,14 @@
 import {
   CreateOrderInput,
-  CreateOrderPaymentInput,
-  CreateRefundInput,
   DownloadableFilePaginator,
+  KolshiCreateOrderInput,
+  KolshiOrderHistoryEntry,
+  KolshiOrderQueryOptions,
+  KolshiTrackingResponse,
   Order,
   OrderPaginator,
   OrderQueryOptions,
-  PaymentGateway,
   QueryOptions,
-  RefundPolicyQueryOptions,
 } from '@/types';
 import {
   useInfiniteQuery,
@@ -18,23 +18,24 @@ import {
 } from 'react-query';
 import { useTranslation } from 'next-i18next';
 import { toast } from 'react-toastify';
-import { useModalAction } from '@/components/ui/modal/modal.context';
 import { API_ENDPOINTS } from './client/api-endpoints';
 import client from './client';
-import { useAtom } from 'jotai';
-import { verifiedResponseAtom } from '@/store/checkout';
 import { useRouter } from 'next/router';
 import { Routes } from '@/config/routes';
 import { mapPaginatorData } from '@/framework/utils/data-mappers';
-import { isArray, isObject, isEmpty } from 'lodash';
 
-export function useOrders(options?: Partial<OrderQueryOptions>) {
-  const { locale } = useRouter();
-
-  const formattedOptions = {
-    ...options,
-    // language: locale
-  };
+/* ──────────────────────────────────────────────────────────────────────
+ * My Orders (G.1) — `GET /orders`
+ *
+ * Kolshi issues **one order per shop** at checkout (see F.3/G.4). The
+ * listing endpoint is already flat, so no client-side parent/suborder
+ * flattening is required; the hook mirrors the template contract so
+ * existing list components keep working.
+ * ──────────────────────────────────────────────────────────────────── */
+export function useOrders(
+  options?: Partial<KolshiOrderQueryOptions> & Partial<OrderQueryOptions>,
+) {
+  const formattedOptions = { ...options } as Record<string, unknown>;
 
   const {
     data,
@@ -52,12 +53,8 @@ export function useOrders(options?: Partial<OrderQueryOptions>) {
       getNextPageParam: ({ current_page, last_page }) =>
         last_page > current_page && { page: current_page + 1 },
       refetchOnWindowFocus: false,
-    }
+    },
   );
-
-  function handleLoadMore() {
-    fetchNextPage();
-  }
 
   return {
     orders: data?.pages?.flatMap((page) => page.data) ?? [],
@@ -68,19 +65,23 @@ export function useOrders(options?: Partial<OrderQueryOptions>) {
     error,
     isFetching,
     isLoadingMore: isFetchingNextPage,
-    loadMore: handleLoadMore,
+    loadMore: () => fetchNextPage(),
     hasMore: Boolean(hasNextPage),
   };
 }
 
+/* ──────────────────────────────────────────────────────────────────────
+ * Order detail (G.2) — `GET /orders/{id}`
+ *
+ * The template routes by `tracking_number`; Kolshi's endpoint accepts
+ * both the numeric id and the tracking number. We keep the param name
+ * so call sites stay unchanged.
+ * ──────────────────────────────────────────────────────────────────── */
 export function useOrder({ tracking_number }: { tracking_number: string }) {
-  const { data, isLoading, error, isFetching, refetch } = useQuery<
-    Order,
-    Error
-  >(
+  const { data, isLoading, error, isFetching, refetch } = useQuery<Order, Error>(
     [API_ENDPOINTS.ORDERS, tracking_number],
     () => client.orders.get(tracking_number),
-    { refetchOnWindowFocus: false }
+    { refetchOnWindowFocus: false, enabled: Boolean(tracking_number) },
   );
 
   return {
@@ -92,393 +93,246 @@ export function useOrder({ tracking_number }: { tracking_number: string }) {
   };
 }
 
-export function useRefunds(options: Pick<QueryOptions, 'limit'>) {
-  const { locale } = useRouter();
-
-  const formattedOptions = {
-    ...options,
-    // language: locale
-  };
-
-  const {
-    data,
-    isLoading,
-    isFetchingNextPage,
-    fetchNextPage,
-    hasNextPage,
-    error,
-  } = useInfiniteQuery(
-    [API_ENDPOINTS.ORDERS_REFUNDS, formattedOptions],
-    ({ queryKey, pageParam }) =>
-      client.orders.refunds(Object.assign({}, queryKey[1], pageParam)),
-    {
-      getNextPageParam: ({ current_page, last_page }) =>
-        last_page > current_page && { page: current_page + 1 },
-    }
+/**
+ * `GET /orders/{id}/history` — audit log for an order. Feeds the
+ * progress box on the order-detail page.
+ */
+export function useOrderHistory(id: string | number | undefined | null) {
+  const { data, isLoading, error, refetch } = useQuery<
+    KolshiOrderHistoryEntry[],
+    Error
+  >(
+    [API_ENDPOINTS.ORDERS_HISTORY, id, 'history'],
+    () => client.orders.history(id as string | number),
+    { enabled: Boolean(id), refetchOnWindowFocus: false },
   );
-
-  function handleLoadMore() {
-    fetchNextPage();
-  }
-
   return {
-    refunds: data?.pages?.flatMap((page) => page.data) ?? [],
-    paginatorInfo: Array.isArray(data?.pages)
-      ? mapPaginatorData(data?.pages[data.pages.length - 1])
-      : null,
+    history: data ?? [],
     isLoading,
-    isLoadingMore: isFetchingNextPage,
     error,
-    loadMore: handleLoadMore,
-    hasMore: Boolean(hasNextPage),
+    refetch,
   };
 }
 
-
-export const useDownloadableProducts = (
-  options: Pick<QueryOptions, 'limit'>
-) => {
-  const { locale } = useRouter();
-
-  const formattedOptions = {
-    ...options,
-    // language: locale
-  };
-
-  const {
-    data,
-    isLoading,
-    isFetching,
-    isFetchingNextPage,
-    fetchNextPage,
-    hasNextPage,
-    error,
-  } = useInfiniteQuery<DownloadableFilePaginator, Error>(
-    [API_ENDPOINTS.ORDERS_DOWNLOADS, formattedOptions],
-    ({ queryKey, pageParam }) =>
-      client.orders.downloadable(Object.assign({}, queryKey[1], pageParam)),
-    {
-      getNextPageParam: ({ current_page, last_page }) =>
-        last_page > current_page && { page: current_page + 1 },
-      refetchOnWindowFocus: false,
-    }
-  );
-
-  function handleLoadMore() {
-    fetchNextPage();
-  }
-
-  return {
-    downloads: data?.pages?.flatMap((page) => page.data) ?? [],
-    paginatorInfo: Array.isArray(data?.pages)
-      ? mapPaginatorData(data?.pages[data.pages.length - 1])
-      : null,
-    isLoading,
-    isFetching,
-    isLoadingMore: isFetchingNextPage,
-    error,
-    loadMore: handleLoadMore,
-    hasMore: Boolean(hasNextPage),
-  };
-};
-
-export function useCreateRefund() {
-  const { t } = useTranslation();
-  const { locale } = useRouter();
-  const { closeModal } = useModalAction();
+/**
+ * `PUT /orders/{id}/cancel` — customer-initiated cancellation, allowed
+ * only while the order has not yet reached `AT_LOCAL_FACILITY`. The
+ * Kolshi error payload (`{ message }`) is surfaced verbatim on failure.
+ */
+export function useCancelOrder() {
   const queryClient = useQueryClient();
-  const { mutate: createRefundRequest, isLoading } = useMutation(
-    client.orders.createRefund,
+  const { t } = useTranslation('common');
+
+  return useMutation(
+    ({ id, note }: { id: string | number; note?: string }) =>
+      client.orders.cancel(id, note),
     {
       onSuccess: () => {
-        toast.success(`${t('text-refund-request-submitted')}`);
+        toast.success(t('text-order-cancelled-successfully'));
       },
-      onError: (error) => {
-        const {
-          response: { data },
-        }: any = error ?? {};
-
-        toast.error(`${t(data?.message)}`);
+      onError: (error: any) => {
+        toast.error(
+          error?.response?.data?.message ?? t('error-order-cancel-failed'),
+        );
       },
       onSettled: () => {
         queryClient.invalidateQueries(API_ENDPOINTS.ORDERS);
-        closeModal();
       },
-    }
+    },
   );
-
-  function formatRefundInput(input: CreateRefundInput) {
-    const formattedInputs = {
-      ...input,
-      // language: locale
-    };
-    createRefundRequest(formattedInputs);
-  }
-
-  return {
-    createRefundRequest: formatRefundInput,
-    isLoading,
-  };
 }
 
-export function useCreateOrder() {
+/* ──────────────────────────────────────────────────────────────────────
+ * Place order (F.3) — `POST /orders`
+ *
+ * Returns `List<OrderDTO>` (one row per shop in the cart). We collect
+ * the tracking numbers and redirect to `/orders/order-received?ids=`
+ * which fans out into one card per order. Legacy single-order flows
+ * keep working because the list always has at least one element.
+ * ──────────────────────────────────────────────────────────────────── */
+export function usePlaceOrderMutation() {
   const router = useRouter();
-  const { locale } = router;
-  const { t } = useTranslation();
-  const { mutate: createOrder, isLoading } = useMutation(client.orders.create, {
-    onSuccess: ({ tracking_number, payment_gateway, payment_intent }) => {
-      console.log(
-        tracking_number,
-        payment_gateway,
-        payment_intent,
-        'create order'
-      );
-
-      if (tracking_number) {
-        if (
-          [
-            PaymentGateway.COD,
-            PaymentGateway.CASH,
-            PaymentGateway.FULL_WALLET_PAYMENT,
-          ].includes(payment_gateway as PaymentGateway)
-        ) {
-          return router.push(Routes.order(tracking_number));
-        }
-
-        if (payment_intent?.payment_intent_info?.is_redirect) {
-          return router.push(
-            payment_intent?.payment_intent_info?.redirect_url as string
-          );
-        } else {
-          return router.push(`${Routes.order(tracking_number)}/payment`);
-        }
-      }
-    },
-    onError: (error) => {
-      const {
-        response: { data },
-      }: any = error ?? {};
-      toast.error(data?.message);
-    },
-  });
-
-  function formatOrderInput(input: CreateOrderInput) {
-    const formattedInputs = {
-      ...input,
-      language: locale,
-      invoice_translated_text: {
-        subtotal: t('order-sub-total'),
-        discount: t('order-discount'),
-        tax: t('order-tax'),
-        delivery_fee: t('order-delivery-fee'),
-        total: t('order-total'),
-        products: t('text-products'),
-        quantity: t('text-quantity'),
-        invoice_no: t('text-invoice-no'),
-        date: t('text-date'),
-      },
-    };
-    createOrder(formattedInputs);
-  }
-
-  return {
-    createOrder: formatOrderInput,
-    isLoading,
-    // isPaymentIntentLoading
-  };
-}
-
-export function useGenerateDownloadableUrl() {
-  const { mutate: getDownloadableUrl } = useMutation(
-    client.orders.generateDownloadLink,
-    {
-      onSuccess: (data) => {
-        function download(fileUrl: string, fileName: string) {
-          var a = document.createElement('a');
-          a.href = fileUrl;
-          a.setAttribute('download', fileName);
-          a.click();
-        }
-
-        download(data, 'record.name');
-      },
-    }
-  );
-
-  function generateDownloadableUrl(digital_file_id: string) {
-    getDownloadableUrl({
-      digital_file_id,
-    });
-  }
-
-  return {
-    generateDownloadableUrl,
-  };
-}
-
-export function useVerifyOrder() {
-  const [_, setVerifiedResponse] = useAtom(verifiedResponseAtom);
-
-  return useMutation(client.orders.verify, {
-    onSuccess: (data) => {
-      //@ts-ignore
-      if (data?.errors as string) {
-        //@ts-ignore
-        toast.error(data?.errors[0]?.message);
-      } else if (data) {
-        // FIXME
-        //@ts-ignore
-        setVerifiedResponse(data);
-      }
-    },
-    onError: (error) => {
-      const {
-        response: { data },
-      }: any = error ?? {};
-      toast.error(data?.message);
-    },
-  });
-}
-
-export function useOrderPayment() {
+  const { t } = useTranslation('common');
   const queryClient = useQueryClient();
 
-  const { mutate: createOrderPayment, isLoading } = useMutation(
-    client.orders.payment,
-    {
-      onSettled: (data) => {
-        queryClient.refetchQueries(API_ENDPOINTS.ORDERS);
-        queryClient.refetchQueries(API_ENDPOINTS.ORDERS_DOWNLOADS);
-      },
-      onError: (error) => {
-        const {
-          response: { data },
-        }: any = error ?? {};
-        toast.error(data?.message);
-      },
-    }
-  );
+  const { mutate, isLoading } = useMutation(client.orders.create, {
+    onSuccess: (orders) => {
+      queryClient.invalidateQueries(API_ENDPOINTS.CART);
+      queryClient.invalidateQueries(API_ENDPOINTS.ORDERS);
+      const list = Array.isArray(orders) ? orders : [orders];
+      if (!list.length) {
+        toast.error(t('error-order-create-failed'));
+        return;
+      }
+      const trackingNumbers = list
+        .map((o: Order) => o?.tracking_number)
+        .filter(Boolean);
+      if (trackingNumbers.length > 1) {
+        router.push(
+          `/orders/order-received?ids=${trackingNumbers.join(',')}`,
+        );
+      } else if (trackingNumbers.length === 1) {
+        router.push(Routes.order(trackingNumbers[0] as string));
+      }
+    },
+    onError: (error: any) => {
+      toast.error(
+        error?.response?.data?.message ?? t('error-order-create-failed'),
+      );
+    },
+  });
 
-  function formatOrderInput(input: CreateOrderPaymentInput) {
-    const formattedInputs = {
-      ...input,
-    };
-    createOrderPayment(formattedInputs);
+  return { placeOrder: mutate, isLoading };
+}
+
+/**
+ * Legacy alias preserved so older call sites (`useCreateOrder().createOrder(...)`)
+ * keep compiling while we migrate to `usePlaceOrderMutation`. The legacy
+ * Pickbazar payload is accepted verbatim; Kolshi quietly ignores unknown
+ * fields.
+ */
+export function useCreateOrder() {
+  const { placeOrder, isLoading } = usePlaceOrderMutation();
+  function createOrder(input: CreateOrderInput | KolshiCreateOrderInput) {
+    placeOrder(input as any);
   }
-
-  return {
-    createOrderPayment: formatOrderInput,
-    isLoading,
-  };
+  return { createOrder, isLoading };
 }
 
-export function useSavePaymentMethod() {
-  const {
-    mutate: savePaymentMethod,
-    isLoading,
-    error,
-    data,
-  } = useMutation(client.orders.savePaymentMethod);
-
-  return {
-    savePaymentMethod,
-    data,
-    isLoading,
-    error,
-  };
-}
-
-export function useGetPaymentIntentOriginal({
-  tracking_number,
+/* ──────────────────────────────────────────────────────────────────────
+ * Tracking (G.3) — `GET /tracking/{trackingNumber}?contact=`
+ *
+ * Public endpoint: no auth required; `contact` must match the email or
+ * phone captured at checkout. The hook stays disabled until both inputs
+ * are present so typing into the form doesn't spam the backend.
+ * ──────────────────────────────────────────────────────────────────── */
+export function usePublicTracking({
+  trackingNumber,
+  contact,
+  enabled = true,
 }: {
-  tracking_number: string;
+  trackingNumber?: string;
+  contact?: string;
+  enabled?: boolean;
 }) {
-  const router = useRouter();
-  const { openModal } = useModalAction();
-
-  const { data, isLoading, error, refetch } = useQuery(
-    [API_ENDPOINTS.PAYMENT_INTENT, { tracking_number }],
-    () => client.orders.getPaymentIntent({ tracking_number }),
-    // Make it dynamic for both gql and rest
+  const query = useQuery<KolshiTrackingResponse, Error>(
+    [API_ENDPOINTS.TRACKING, trackingNumber, contact],
+    () => client.tracking.get(trackingNumber!, contact),
     {
-      enabled: false,
-      onSuccess: (data) => {
-        if (data?.payment_intent_info?.is_redirect) {
-          return router.push(data?.payment_intent_info?.redirect_url as string);
-        } else {
-          openModal('PAYMENT_MODAL', {
-            paymentGateway: data?.payment_gateway,
-            paymentIntentInfo: data?.payment_intent_info,
-            trackingNumber: data?.tracking_number,
-          });
-        }
-      },
-    }
+      enabled: enabled && Boolean(trackingNumber && contact),
+      retry: false,
+      refetchOnWindowFocus: false,
+    },
   );
-
   return {
-    data,
-    getPaymentIntentQueryOriginal: refetch,
-    isLoading,
-    error,
+    tracking: query.data,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    error: query.error,
+    refetch: query.refetch,
   };
 }
 
-export function useGetPaymentIntent({
-  tracking_number,
-  payment_gateway,
-  recall_gateway,
-  form_change_gateway,
-}: {
+/**
+ * Kolshi skips the pre-place-order verification round-trip (handoff F.6).
+ * Callers (`check-availability-action`) kept their old signature, so we
+ * expose a compatible mutation that resolves with a pass-through payload.
+ */
+export function useVerifyOrder() {
+  return useMutation(client.orders.verify);
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Legacy stubs — features scheduled for Delete in S6.
+ *
+ * Keeping these exports alive means the refunds / downloads / payment-
+ * intent pages still compile until they are removed in S6. Each stub
+ * resolves/rejects with a predictable shape so callers fall through to
+ * the "coming soon" toast path.
+ * ──────────────────────────────────────────────────────────────────── */
+/** @deprecated Refund workflow is admin-only. */
+export function useRefunds(_options: Pick<QueryOptions, 'limit'>) {
+  return {
+    refunds: [],
+    paginatorInfo: null,
+    isLoading: false,
+    isLoadingMore: false,
+    error: null,
+    loadMore: () => {},
+    hasMore: false,
+  };
+}
+
+/** @deprecated Refund workflow is admin-only. */
+export function useCreateRefund() {
+  return {
+    createRefundRequest: (_input: unknown) => {},
+    isLoading: false,
+  };
+}
+
+/** @deprecated Digital downloads are out of scope. */
+export const useDownloadableProducts = (_options: Pick<QueryOptions, 'limit'>) => ({
+  downloads: [] as DownloadableFilePaginator['data'],
+  paginatorInfo: null,
+  isLoading: false,
+  isFetching: false,
+  isLoadingMore: false,
+  error: null,
+  loadMore: () => {},
+  hasMore: false,
+});
+
+/** @deprecated Digital downloads are out of scope. */
+export function useGenerateDownloadableUrl() {
+  const { t } = useTranslation('common');
+  return {
+    generateDownloadableUrl: (_id: string) => {
+      toast.info(t('text-digital-downloads-not-available'));
+    },
+  };
+}
+
+/** @deprecated Kolshi has no payment-intent flow yet. */
+export function useOrderPayment() {
+  return {
+    createOrderPayment: (_input: unknown) => {},
+    isLoading: false,
+  };
+}
+
+/** @deprecated Saved cards are out of scope. */
+export function useSavePaymentMethod() {
+  return {
+    savePaymentMethod: (_input: unknown) => {},
+    data: undefined,
+    isLoading: false,
+    error: null,
+  };
+}
+
+/** @deprecated Payment-intent flow is disabled pending webhook rollout. */
+export function useGetPaymentIntentOriginal(_args: { tracking_number: string }) {
+  return {
+    data: undefined,
+    getPaymentIntentQueryOriginal: () => Promise.resolve(),
+    isLoading: false,
+    error: null,
+  };
+}
+
+/** @deprecated Payment-intent flow is disabled pending webhook rollout. */
+export function useGetPaymentIntent(_args: {
   tracking_number: string;
-  payment_gateway: string;
+  payment_gateway?: string;
   recall_gateway?: boolean;
   form_change_gateway?: boolean;
 }) {
-  const router = useRouter();
-  const { openModal, closeModal } = useModalAction();
-
-  const { data, isLoading, error, refetch, isFetching } = useQuery(
-    [
-      API_ENDPOINTS.PAYMENT_INTENT,
-      { tracking_number, payment_gateway, recall_gateway },
-    ],
-    () =>
-      client.orders.getPaymentIntent({
-        tracking_number,
-        payment_gateway,
-        recall_gateway,
-      }),
-    // Make it dynamic for both gql and rest
-    {
-      enabled: false,
-      onSuccess: (item) => {
-        let data: any = '';
-        if (isArray(item)) {
-          data = { ...item };
-          data = isEmpty(data) ? [] : data[0];
-        } else if (isObject(item)) {
-          data = item;
-        }
-        if (data?.payment_intent_info?.is_redirect) {
-          return router.push(data?.payment_intent_info?.redirect_url as string);
-        } else {
-          if (recall_gateway) window.location.reload();
-          openModal('PAYMENT_MODAL', {
-            paymentGateway: data?.payment_gateway,
-            paymentIntentInfo: data?.payment_intent_info,
-            trackingNumber: data?.tracking_number,
-          });
-        }
-      },
-    }
-  );
-
   return {
-    data,
-    getPaymentIntentQuery: refetch,
-    isLoading,
-    fetchAgain: isFetching,
-    error,
+    data: undefined,
+    getPaymentIntentQuery: () => Promise.resolve(),
+    isLoading: false,
+    fetchAgain: false,
+    error: null,
   };
 }

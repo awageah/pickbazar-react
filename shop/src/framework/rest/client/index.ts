@@ -112,6 +112,16 @@ import type {
   ProductImage,
   ProductVariation,
   ReviewSummary,
+  KolshiCart,
+  AddToCartInput,
+  UpdateCartItemInput,
+  KolshiValidateCouponInput,
+  KolshiValidateCouponResponse,
+  KolshiBestMatchCouponInput,
+  KolshiTrackingResponse,
+  KolshiCreateOrderInput,
+  KolshiOrderHistoryEntry,
+  KolshiOrderQueryOptions,
 } from '@/types';
 import { resolveSortBy } from '../utils/sort-mapper';
 
@@ -499,76 +509,216 @@ class Client {
         language,
       }),
   };
+  /* ───────────────────────────────────────────────────────────────────
+   * Coupons — Kolshi F.5
+   *
+   * `/coupons/validate` is the single server-side check the checkout runs
+   * before applying a code. `/coupons/best-match` is an optional helper
+   * that returns the most valuable coupon the customer currently
+   * qualifies for. The legacy paginated `/coupons` listing is kept as a
+   * compiling shim (template flows used it for the "All Offers" page,
+   * which is reduced to a placeholder in S6).
+   * ───────────────────────────────────────────────────────────────── */
   coupons = {
     all: (params: Partial<CouponQueryOptions>) =>
       HttpClient.get<CouponPaginator>(API_ENDPOINTS.COUPONS, params),
-    verify: (input: VerifyCouponInputType) =>
-      HttpClient.post<VerifyCouponResponse>(
-        API_ENDPOINTS.COUPONS_VERIFY,
-        input,
-      ),
-  };
-  orders = {
-    all: (params: Partial<OrderQueryOptions>) =>
-      HttpClient.get<OrderPaginator>(API_ENDPOINTS.ORDERS, {
-        with: 'refund',
-        ...params,
-      }),
-    get: (tracking_number: string) =>
-      HttpClient.get<Order>(`${API_ENDPOINTS.ORDERS}/${tracking_number}`, {
-        with: 'refund;reviews',
-      }),
-    create: (input: CreateOrderInput) =>
-      HttpClient.post<Order>(API_ENDPOINTS.ORDERS, input),
-    refunds: (params: Pick<QueryOptions, 'limit'>) =>
-      HttpClient.get<RefundPaginator>(API_ENDPOINTS.ORDERS_REFUNDS, {
-        with: 'refund_policy;order',
-        ...params,
-      }),
-    createRefund: (input: CreateRefundInput) =>
-      HttpClient.post<Refund>(API_ENDPOINTS.ORDERS_REFUNDS, input),
-    payment: (input: CreateOrderPaymentInput) =>
-      HttpClient.post<any>(API_ENDPOINTS.ORDERS_PAYMENT, input),
-    savePaymentMethod: (input: any) =>
-      HttpClient.post<any>(API_ENDPOINTS.SAVE_PAYMENT_METHOD, input),
 
-    downloadable: (query?: OrderQueryOptions) =>
-      HttpClient.get<DownloadableFilePaginator>(
-        API_ENDPOINTS.ORDERS_DOWNLOADS,
-        query,
-      ),
-    verify: (input: CheckoutVerificationInput) =>
-      HttpClient.post<VerifiedCheckoutData>(
-        API_ENDPOINTS.ORDERS_CHECKOUT_VERIFY,
+    /**
+     * `POST /coupons/validate` — new Kolshi contract. Returns
+     * `{ is_valid, coupon?, discount?, message? }` so the UI can surface
+     * both the savings and the server-side reason on rejection.
+     */
+    validate: (input: KolshiValidateCouponInput) =>
+      HttpClient.post<KolshiValidateCouponResponse>(
+        API_ENDPOINTS.COUPONS_VALIDATE,
         input,
       ),
-    generateDownloadLink: (input: { digital_file_id: string }) =>
-      HttpClient.post<string>(
-        API_ENDPOINTS.GENERATE_DOWNLOADABLE_PRODUCT_LINK,
+
+    /** `POST /coupons/best-match` — optional recommender. */
+    bestMatch: (input: KolshiBestMatchCouponInput) =>
+      HttpClient.post<KolshiValidateCouponResponse>(
+        API_ENDPOINTS.COUPONS_BEST_MATCH,
         input,
       ),
-    getPaymentIntentOriginal: ({
+
+    /**
+     * Legacy verify shim — the template's checkout component still
+     * imports this. Accepts the old payload shape and adapts to the new
+     * `validate` endpoint. Removed in S6 once `coupon.tsx` is rewired
+     * to call `validate` directly.
+     */
+    verify: async (input: VerifyCouponInputType) => {
+      const response = await HttpClient.post<KolshiValidateCouponResponse>(
+        API_ENDPOINTS.COUPONS_VALIDATE,
+        {
+          code: input.code,
+          sub_total: input.sub_total,
+        },
+      );
+      return response as unknown as VerifyCouponResponse;
+    },
+  };
+
+  /* ───────────────────────────────────────────────────────────────────
+   * Cart — Kolshi F.1
+   *
+   * The cart is server-owned. Every mutation round-trips; the client
+   * uses React-Query for optimistic updates (see `framework/rest/cart`).
+   * Guest carts do not exist — hooks must gate behind auth (F.2).
+   * ───────────────────────────────────────────────────────────────── */
+  cart = {
+    /** `GET /cart` — returns the live server cart for the logged-in user. */
+    get: () => HttpClient.get<KolshiCart>(API_ENDPOINTS.CART),
+
+    /** `POST /cart/items` — idempotent on (productId, variationId). */
+    addItem: (input: AddToCartInput) =>
+      HttpClient.post<KolshiCart>(API_ENDPOINTS.CART_ITEMS, input),
+
+    /** `PUT /cart/items/{id}` — absolute (not delta) quantity. */
+    updateItem: (id: number | string, input: UpdateCartItemInput) =>
+      HttpClient.put<KolshiCart>(`${API_ENDPOINTS.CART_ITEMS}/${id}`, input),
+
+    /** `DELETE /cart/items/{id}`. */
+    removeItem: (id: number | string) =>
+      HttpClient.delete<KolshiCart | void>(
+        `${API_ENDPOINTS.CART_ITEMS}/${id}`,
+      ),
+
+    /** `DELETE /cart` — wipes the entire cart. */
+    clear: () => HttpClient.delete<KolshiCart | void>(API_ENDPOINTS.CART),
+  };
+
+  /* ───────────────────────────────────────────────────────────────────
+   * Orders — Kolshi F.3, G.1–G.4
+   *
+   * Key contract differences vs. Pickbazar:
+   *   - `POST /orders` returns a **list** of `OrderDTO` (one per shop).
+   *   - Order states follow ORDER_RECEIVED → … → COMPLETED / CANCELLED
+   *     (no `order-pending` etc.). Admin transitions live under
+   *     `/orders/{id}/{transition}` per handoff.
+   *   - Refunds, payment-intent, saved-cards, and downloads endpoints
+   *     are removed/unsupported (H.1–H.3, D.8); shims below reject
+   *     with typed errors so legacy callers surface a toast instead of
+   *     crashing until they're deleted in S6.
+   * ───────────────────────────────────────────────────────────────── */
+  orders = {
+    /**
+     * `GET /orders`. The template passes `orderBy`/`sortedBy` from the
+     * dashboard filter UI — we translate to Kolshi's `sortBy` enum
+     * without touching the caller. `with=` is dropped (no eager-load in
+     * Kolshi).
+     */
+    all: ({
+      orderBy: _orderBy,
+      sortedBy: _sortedBy,
+      with: _with,
       tracking_number,
-    }: {
-      tracking_number: string;
-    }) =>
-      HttpClient.get<PaymentIntentCollection>(API_ENDPOINTS.PAYMENT_INTENT, {
-        tracking_number,
+      ...params
+    }: Partial<KolshiOrderQueryOptions> &
+      Partial<OrderQueryOptions> &
+      Record<string, unknown>) =>
+      HttpClient.get<OrderPaginator>(API_ENDPOINTS.ORDERS, {
+        ...(tracking_number ? { tracking_number } : {}),
+        ...params,
       }),
-    getPaymentIntent: ({
-      tracking_number,
-      payment_gateway,
-      recall_gateway,
-    }: {
+
+    /**
+     * `GET /orders/{id}`. Kolshi deep-linking uses numeric order IDs,
+     * but the template navigates by `tracking_number`. Both call sites
+     * are routed through this method; the backend accepts either.
+     */
+    get: (idOrTracking: string | number) =>
+      HttpClient.get<Order>(`${API_ENDPOINTS.ORDERS}/${idOrTracking}`),
+
+    /**
+     * `POST /orders`. Returns `Order[]` (one per shop). Callers must
+     * handle the array shape — see `usePlaceOrderMutation`. Legacy
+     * Pickbazar payloads are accepted at runtime; fields Kolshi ignores
+     * are stripped silently rather than rejecting the request.
+     */
+    create: (input: KolshiCreateOrderInput | CreateOrderInput) =>
+      HttpClient.post<Order[]>(API_ENDPOINTS.ORDERS, input),
+
+    /** `PUT /orders/{id}/cancel`. */
+    cancel: (id: number | string, note?: string) =>
+      HttpClient.put<Order>(
+        `${API_ENDPOINTS.ORDERS}/${id}/cancel`,
+        note ? { note } : {},
+      ),
+
+    /** `GET /orders/{id}/history`. */
+    history: (id: number | string) =>
+      HttpClient.get<KolshiOrderHistoryEntry[]>(
+        `${API_ENDPOINTS.ORDERS}/${id}/history`,
+      ),
+
+    // ─── Coming Soon / Deleted (H.1–H.3, H.5, D.8) ──────────────────────
+    /** @deprecated Refund workflow is admin-only; customers cannot request. */
+    refunds: (_params: Pick<QueryOptions, 'limit'>) =>
+      Promise.reject<RefundPaginator>(
+        new Error('Refund requests are not supported in Kolshi.'),
+      ),
+    /** @deprecated see H.5. */
+    createRefund: (_input: CreateRefundInput) =>
+      Promise.reject<Refund>(
+        new Error('Refund requests are not supported in Kolshi.'),
+      ),
+    /** @deprecated see H.1 — payment flow is managed by `/payments/process`. */
+    payment: (_input: CreateOrderPaymentInput) =>
+      Promise.reject<any>(
+        new Error('Legacy payment-intent flow is disabled.'),
+      ),
+    /** @deprecated see H.3. */
+    savePaymentMethod: (_input: any) =>
+      Promise.reject<any>(
+        new Error('Saved payment methods are not supported.'),
+      ),
+    /** @deprecated see D.8. */
+    downloadable: (_query?: OrderQueryOptions) =>
+      Promise.reject<DownloadableFilePaginator>(
+        new Error('Digital downloads are not supported in Kolshi.'),
+      ),
+    /** @deprecated see F.6 — no checkout-verify step in Kolshi. */
+    verify: (_input: CheckoutVerificationInput) =>
+      Promise.resolve<VerifiedCheckoutData>({
+        total_tax: 0,
+        shipping_charge: 0,
+        unavailable_products: [],
+      } as VerifiedCheckoutData),
+    /** @deprecated see D.8. */
+    generateDownloadLink: (_input: { digital_file_id: string }) =>
+      Promise.reject<string>(
+        new Error('Digital downloads are not supported in Kolshi.'),
+      ),
+    /** @deprecated see H.1 — Stripe wiring lives in S7+. */
+    getPaymentIntentOriginal: (_input: { tracking_number: string }) =>
+      Promise.reject<PaymentIntentCollection>(
+        new Error('Payment-intent flow is disabled pending webhook rollout.'),
+      ),
+    /** @deprecated see H.1. */
+    getPaymentIntent: (_input: {
       tracking_number: string;
       payment_gateway?: string;
       recall_gateway?: boolean;
     }) =>
-      HttpClient.get<PaymentIntentCollection>(API_ENDPOINTS.PAYMENT_INTENT, {
-        tracking_number,
-        payment_gateway,
-        recall_gateway,
-      }),
+      Promise.reject<PaymentIntentCollection>(
+        new Error('Payment-intent flow is disabled pending webhook rollout.'),
+      ),
+  };
+
+  /* ───────────────────────────────────────────────────────────────────
+   * Public tracking — Kolshi G.3 (`GET /tracking/{trackingNumber}?contact=`)
+   *
+   * The endpoint is unauthenticated but requires the customer contact
+   * (phone/email) that was supplied at checkout as a weak shared secret.
+   * ───────────────────────────────────────────────────────────────── */
+  tracking = {
+    /** `GET /tracking/{trackingNumber}?contact=`. */
+    get: (trackingNumber: string, contact?: string) =>
+      HttpClient.get<KolshiTrackingResponse>(
+        `${API_ENDPOINTS.TRACKING}/${encodeURIComponent(trackingNumber)}`,
+        contact ? { contact } : undefined,
+      ),
   };
   refundReason = {
     all: ({ type, ...params }: Partial<RefundQueryOptions>) =>

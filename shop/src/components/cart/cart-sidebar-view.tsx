@@ -15,21 +15,11 @@ import { drawerAtom } from '@/store/drawer-atom';
 
 const CartSidebarView = () => {
   const { t } = useTranslation('common');
-  const { items, totalUniqueItems, total, language } = useCart();
+  const { items, totalUniqueItems, total } = useCart();
   const [_, closeSidebar] = useAtom(drawerAtom);
   const router = useRouter();
   function handleCheckout() {
-    const isRegularCheckout = items.find((item) => !Boolean(item.is_digital));
-    if (isRegularCheckout) {
-      router.push(Routes.checkout, undefined, {
-        locale: language,
-      });
-    } else {
-      router.push(Routes.checkoutDigital, undefined, {
-        locale: language,
-      });
-    }
-
+    router.push(Routes.checkout);
     closeSidebar({ display: false, view: '' });
   }
 

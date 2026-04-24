@@ -1,11 +1,7 @@
-import { RadioGroup } from '@headlessui/react';
+import Input from '@/components/ui/forms/input';
 import { useAtom } from 'jotai';
-import ScheduleCard from './schedule-card';
 import { deliveryTimeAtom } from '@/store/checkout';
-import { useEffect } from 'react';
 import { useTranslation } from 'next-i18next';
-import { useSettings } from '@/framework/settings';
-import { isArray, isEmpty } from 'lodash';
 
 interface ScheduleProps {
   label: string;
@@ -13,22 +9,26 @@ interface ScheduleProps {
   count?: number;
 }
 
+/**
+ * Kolshi F.6 / N.1 — delivery scheduling collapses to a single free-text
+ * preference. The template's RadioGroup of pre-defined windows is gone
+ * because Kolshi stores `delivery_time` as a plain string on the order;
+ * there is no backend catalogue of schedules. Callers keep setting the
+ * `deliveryTimeAtom` so the existing place-order payload still contains
+ * a `delivery_time` value.
+ */
 export const ScheduleGrid: React.FC<ScheduleProps> = ({
   label,
   className,
   count,
 }) => {
   const { t } = useTranslation('common');
-  const {
-    settings: { deliveryTime: schedules },
-  }: any = useSettings();
-
   const [selectedSchedule, setSchedule] = useAtom(deliveryTimeAtom);
-  useEffect(() => {
-    if (!isEmpty(schedules) && isArray(schedules)) {
-      setSchedule(schedules[0]);
-    }
-  }, [schedules]);
+  const value =
+    typeof selectedSchedule === 'string'
+      ? selectedSchedule
+      : selectedSchedule?.title ?? '';
+
   return (
     <div className={className}>
       <div className="mb-5 flex items-center justify-between md:mb-8">
@@ -41,27 +41,18 @@ export const ScheduleGrid: React.FC<ScheduleProps> = ({
           <p className="text-lg capitalize text-heading lg:text-xl">{label}</p>
         </div>
       </div>
-
-      {schedules && schedules?.length ? (
-        <RadioGroup value={selectedSchedule} onChange={setSchedule}>
-          <RadioGroup.Label className="sr-only">{label}</RadioGroup.Label>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-            {schedules?.map((schedule: any, idx: number) => (
-              <RadioGroup.Option value={schedule} key={idx}>
-                {({ checked }) => (
-                  <ScheduleCard checked={checked} schedule={schedule} />
-                )}
-              </RadioGroup.Option>
-            ))}
-          </div>
-        </RadioGroup>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-          <span className="relative rounded border border-border-200 bg-gray-100 px-5 py-6 text-center text-base">
-            {t('text-no-delivery-time-found')}
-          </span>
-        </div>
-      )}
+      <Input
+        name="delivery_time"
+        variant="outline"
+        placeholder={t('text-delivery-time-placeholder') as string}
+        value={value}
+        onChange={(e) =>
+          setSchedule({ title: e.target.value } as any)
+        }
+      />
+      <p className="mt-2 text-xs text-body">
+        {t('text-delivery-time-hint')}
+      </p>
     </div>
   );
 };

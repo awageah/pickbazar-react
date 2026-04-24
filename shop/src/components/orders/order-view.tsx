@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import Link from '@/components/ui/link';
 import usePrice from '@/lib/use-price';
@@ -7,50 +7,80 @@ import { formatString } from '@/lib/format-string';
 import { Routes } from '@/config/routes';
 import { useTranslation } from 'next-i18next';
 import { useCart } from '@/store/quick-cart/cart.context';
-import { CheckMark } from '@/components/icons/checkmark';
 import { OrderItems } from '@/components/orders/order-items';
 import { useAtom } from 'jotai';
 import { clearCheckoutAtom } from '@/store/checkout';
-import SuborderItems from '@/components/orders/suborder-items';
 import isEmpty from 'lodash/isEmpty';
-import { OrderStatus, PaymentStatus, RefundStatus } from '@/types';
+import {
+  KolshiOrderStatus,
+  OrderStatus,
+  PaymentStatus,
+} from '@/types';
 import { HomeIconNew } from '@/components/icons/home-icon-new';
 import OrderViewHeader from './order-view-header';
 import OrderStatusProgressBox from '@/components/orders/order-status-progress-box';
+import { useCancelOrder } from '@/framework/order';
+import Badge from '@/components/ui/badge';
 
-function OrderView({ order, language, settings, loadingStatus }: any) {
+function canCancel(status?: string | null) {
+  if (!status) return false;
+  const normalized = String(status).toUpperCase();
+  const blocked = new Set<string>([
+    KolshiOrderStatus.AT_LOCAL_FACILITY,
+    KolshiOrderStatus.OUT_FOR_DELIVERY,
+    KolshiOrderStatus.COMPLETED,
+    KolshiOrderStatus.CANCELLED,
+  ]);
+  return !blocked.has(normalized);
+}
+
+function isCompleted(status?: string | null) {
+  return (
+    String(status ?? '').toUpperCase() === KolshiOrderStatus.COMPLETED
+  );
+}
+
+function OrderView({ order, settings, loadingStatus }: any) {
   const { t } = useTranslation('common');
   const { resetCart } = useCart();
   const [, resetCheckout] = useAtom(clearCheckoutAtom);
+  const cancelMutation = useCancelOrder();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     resetCart();
-    //@ts-ignore
+    // @ts-ignore
     resetCheckout();
   }, [resetCart, resetCheckout]);
 
-  const { price: total } = usePrice({ amount: order?.paid_total! });
-  const { price: wallet_total } = usePrice({
-    amount: order?.wallet_point?.amount! ?? 0,
-  });
-  const { price: sub_total } = usePrice({ amount: order?.amount! });
+  const { price: total } = usePrice({ amount: order?.paid_total ?? order?.total ?? 0 });
+  const { price: sub_total } = usePrice({ amount: order?.amount ?? 0 });
   const { price: shipping_charge } = usePrice({
     amount: order?.delivery_fee ?? 0,
   });
   const { price: tax } = usePrice({ amount: order?.sales_tax ?? 0 });
   const { price: discount } = usePrice({ amount: order?.discount ?? 0 });
 
-  const amountPayable: number =
-    order?.payment_status !== PaymentStatus.SUCCESS
-      ? order?.paid_total! - order?.wallet_point?.amount!
-      : 0;
+  const cancellable = canCancel(order?.order_status);
+  const completed = isCompleted(order?.order_status);
+  const isCancelled =
+    String(order?.order_status ?? '').toUpperCase() ===
+    KolshiOrderStatus.CANCELLED;
 
-  const { price: amountDue } = usePrice({ amount: amountPayable });
+  function handleCancelClick() {
+    if (!cancellable || cancelMutation.isLoading) return;
+    if (!confirmOpen) {
+      setConfirmOpen(true);
+      return;
+    }
+    cancelMutation.mutate({ id: order?.id });
+    setConfirmOpen(false);
+  }
 
   return (
     <div className="p-4 sm:p-8">
       <div className="mx-auto w-full max-w-screen-lg">
-        <div className="mb-5">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <Link
             href={Routes.home}
             className="inline-flex items-center gap-2 text-sm font-semibold text-accent hover:text-accent-hover"
@@ -58,6 +88,46 @@ function OrderView({ order, language, settings, loadingStatus }: any) {
             <HomeIconNew />
             {t('text-back-to-home')}
           </Link>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {isCancelled && (
+              <Badge
+                text={t('text-cancelled') as string}
+                color="bg-red-500"
+                className="!mr-0"
+              />
+            )}
+            {cancellable && (
+              <button
+                type="button"
+                onClick={handleCancelClick}
+                disabled={cancelMutation.isLoading}
+                className="inline-flex h-10 items-center rounded border border-red-500 px-4 text-sm font-semibold text-red-500 transition hover:bg-red-500 hover:text-light disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {cancelMutation.isLoading
+                  ? t('text-cancelling')
+                  : confirmOpen
+                    ? t('text-confirm-cancel')
+                    : t('text-cancel-order')}
+              </button>
+            )}
+            {completed && (
+              <Link
+                href={Routes.order(order?.tracking_number ?? '')}
+                className="inline-flex h-10 items-center rounded border border-accent px-4 text-sm font-semibold text-accent transition hover:bg-accent hover:text-light"
+              >
+                {t('text-leave-a-review')}
+              </Link>
+            )}
+            <Link
+              href={`${Routes.trackOrder}?tracking_number=${encodeURIComponent(
+                order?.tracking_number ?? '',
+              )}`}
+              className="inline-flex h-10 items-center rounded border border-border-200 px-4 text-sm font-semibold text-heading transition hover:border-accent hover:text-accent"
+            >
+              {t('text-track-order')}
+            </Link>
+          </div>
         </div>
         <div className="relative overflow-hidden rounded border shadow-sm">
           <OrderViewHeader
@@ -91,7 +161,6 @@ function OrderView({ order, language, settings, loadingStatus }: any) {
                 </h3>
                 <p className="text-sm text-body-dark">{total}</p>
               </div>
-
               <div className="rounded border border-border-200 px-5 py-4 shadow-sm">
                 <h3 className="mb-2 text-sm font-semibold text-heading">
                   {t('text-payment-method')}
@@ -101,16 +170,13 @@ function OrderView({ order, language, settings, loadingStatus }: any) {
                 </p>
               </div>
             </div>
-            {/* end of order received  */}
 
-            {/* start of order Status */}
             <div className="mb-8 flex w-full items-center justify-center md:mb-12">
               <OrderStatusProgressBox
                 orderStatus={order?.order_status as OrderStatus}
                 paymentStatus={order?.payment_status as PaymentStatus}
               />
             </div>
-            {/* end of order Status */}
 
             <div className="flex flex-col lg:flex-row">
               <div className="mb-12 w-full lg:mb-0 lg:w-1/2 ltr:lg:pr-3 rtl:lg:pl-3">
@@ -158,30 +224,8 @@ function OrderView({ order, language, settings, loadingStatus }: any) {
                       {total}
                     </span>
                   </p>
-                  {order?.wallet_point?.amount! && (
-                    <>
-                      <p className="mt-5 flex text-body-dark">
-                        <strong className="w-5/12 text-sm font-semibold text-heading sm:w-4/12">
-                          {t('text-paid-from-wallet')} :
-                        </strong>
-                        <span className="w-7/12 text-sm ltr:pl-4 rtl:pr-4 sm:w-8/12">
-                          {wallet_total}
-                        </span>
-                      </p>
-
-                      <p className="mt-5 flex text-body-dark">
-                        <strong className="w-5/12 text-sm font-semibold text-heading sm:w-4/12">
-                          {t('text-amount-due')} :
-                        </strong>
-                        <span className="w-7/12 text-sm ltr:pl-4 rtl:pr-4 sm:w-8/12">
-                          {amountDue}
-                        </span>
-                      </p>
-                    </>
-                  )}
                 </div>
               </div>
-              {/* end of total amount */}
 
               <div className="w-full lg:w-1/2 ltr:lg:pl-3 rtl:lg:pr-3">
                 <h2 className="mb-6 text-xl font-bold text-heading">
@@ -237,46 +281,16 @@ function OrderView({ order, language, settings, loadingStatus }: any) {
                   )}
                 </div>
               </div>
-              {/* end of order details */}
             </div>
             <div className="mt-12">
               <OrderItems
                 products={order?.products}
                 orderId={order?.id}
                 orderStatus={order?.order_status}
-                refund={Boolean(
-                  order?.refund?.status ===
-                    RefundStatus?.APPROVED?.toLowerCase(),
-                )}
+                refund={false}
                 settings={settings}
               />
             </div>
-            {order?.children?.length > 1 ? (
-              <div>
-                <h2 className="mt-12 mb-6 text-xl font-bold text-heading">
-                  {t('text-sub-orders')}
-                </h2>
-                <div>
-                  <div className="mb-12 flex items-start rounded border border-gray-700 p-4">
-                    <span className="mt-0.5 flex h-4 w-4 items-center justify-center rounded-sm bg-dark px-2 ltr:mr-3 rtl:ml-3">
-                      <CheckMark className="h-2 w-2 shrink-0 text-light" />
-                    </span>
-                    <p className="text-sm text-heading">
-                      <span className="font-bold">{t('text-note')}:</span>{' '}
-                      {t('message-sub-order')}
-                    </p>
-                  </div>
-                  {Array.isArray(order?.children) && order?.children.length && (
-                    <div className="">
-                      <SuborderItems
-                        items={order?.children}
-                        orderStatus={order?.order_status}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : null}
 
             {order?.note ? (
               <>
@@ -305,7 +319,6 @@ const Order: React.FC<Props> = ({ order, settings, loadingStatus }) => {
   return (
     <OrderView
       order={order}
-      language={order?.language}
       loadingStatus={loadingStatus}
       settings={settings}
     />

@@ -5,86 +5,36 @@ import Link from '@/components/ui/link';
 import { Routes } from '@/config/routes';
 import { Eye } from '@/components/icons/eye-icon';
 import { OrderItems } from './order-items';
-import { useModalAction } from '@/components/ui/modal/modal.context';
-import { SadFaceIcon } from '@/components/icons/sad-face';
 import Badge from '@/components/ui/badge';
 import type { Order } from '@/types';
+import { KolshiOrderStatus, OrderStatus, PaymentStatus } from '@/types';
 import OrderViewHeader from './order-view-header';
 import OrderStatusProgressBox from '@/components/orders/order-status-progress-box';
-import { OrderStatus, PaymentStatus, RefundStatus } from '@/types';
 import { useSettings } from '@/framework/settings';
+import { useCancelOrder } from '@/framework/order';
+import { useState } from 'react';
 
 interface Props {
   order: Order;
   loadingStatus?: boolean;
 }
 
-const RenderStatusBadge: React.FC<{ status: string }> = ({ status }) => {
-  const { t } = useTranslation('common');
-
-  switch (status.toLowerCase()) {
-    case 'approved':
-      return (
-        <Badge
-          text={`${t('text-refund')} ${t('text-approved')}`}
-          color="bg-accent"
-          className="ltr:mr-4 rtl:ml-4"
-        />
-      );
-
-    case 'rejected':
-      return (
-        <Badge
-          text={`${t('text-refund')} ${t('text-rejected')}`}
-          color="bg-red-500"
-          className="ltr:mr-4 rtl:ml-4"
-        />
-      );
-    case 'processing':
-      return (
-        <Badge
-          text={`${t('text-refund')} ${t('text-processing')}`}
-          color="bg-yellow-500"
-          className="ltr:mr-4 rtl:ml-4"
-        />
-      );
-    // case 'pending':
-    default:
-      return (
-        <Badge
-          text={`${t('text-refund')} ${t('text-pending')}`}
-          color="bg-purple-500"
-          className="ltr:mr-4 rtl:ml-4"
-        />
-      );
-  }
-};
-
-function RefundView({
-  status,
-  orderId,
-}: {
-  status: string;
-  orderId: string | number;
-}) {
-  const { t } = useTranslation('common');
-  const { openModal } = useModalAction();
-  return (
-    <>
-      {status ? (
-        <RenderStatusBadge status={status} />
-      ) : (
-        <button
-          className="flex items-center text-sm font-semibold text-body transition-colors hover:text-accent disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:text-gray-400 ltr:mr-4 rtl:ml-4"
-          onClick={() => openModal('REFUND_REQUEST', orderId)}
-          disabled={Boolean(status)}
-        >
-          <SadFaceIcon width={18} className="ltr:mr-2 rtl:ml-2" />
-          {t('text-ask-refund')}
-        </button>
-      )}
-    </>
-  );
+/**
+ * Kolshi H.1 — A customer can cancel an order any time before it leaves
+ * the facility (i.e. before `AT_LOCAL_FACILITY`). Treat unknown / legacy
+ * Pickbazar statuses as cancellable because the backend is still the
+ * authority and will reject invalid transitions.
+ */
+function canCancel(status?: string | null) {
+  if (!status) return false;
+  const normalized = String(status).toUpperCase();
+  const blocked = new Set<string>([
+    KolshiOrderStatus.AT_LOCAL_FACILITY,
+    KolshiOrderStatus.OUT_FOR_DELIVERY,
+    KolshiOrderStatus.COMPLETED,
+    KolshiOrderStatus.CANCELLED,
+  ]);
+  return !blocked.has(normalized);
 }
 
 const OrderDetails = ({ order, loadingStatus }: Props) => {
@@ -93,28 +43,37 @@ const OrderDetails = ({ order, loadingStatus }: Props) => {
   const {
     id,
     products,
-    status,
     shipping_address,
     billing_address,
     tracking_number,
-    refund,
   }: any = order ?? {};
 
-  const { price: amount } = usePrice({
-    amount: order?.amount,
-  });
-  const { price: discount } = usePrice({
-    amount: order?.discount ?? 0,
-  });
-  const { price: total } = usePrice({
-    amount: order?.total,
-  });
+  const { price: amount } = usePrice({ amount: order?.amount });
+  const { price: discount } = usePrice({ amount: order?.discount ?? 0 });
+  const { price: total } = usePrice({ amount: order?.total });
   const { price: delivery_fee } = usePrice({
     amount: order?.delivery_fee ?? 0,
   });
-  const { price: sales_tax } = usePrice({
-    amount: order?.sales_tax,
-  });
+  const { price: sales_tax } = usePrice({ amount: order?.sales_tax });
+
+  const cancelMutation = useCancelOrder();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const cancellable = canCancel(order?.order_status);
+  const isCancelled =
+    String(order?.order_status ?? '').toUpperCase() ===
+    KolshiOrderStatus.CANCELLED;
+
+  function handleCancelClick() {
+    if (!cancellable || cancelMutation.isLoading) return;
+    if (!confirmOpen) {
+      setConfirmOpen(true);
+      return;
+    }
+    cancelMutation.mutate({ id });
+    setConfirmOpen(false);
+  }
+
   return (
     <div className="flex w-full flex-col border border-border-200 bg-white lg:w-2/3">
       <div className="flex flex-col items-center p-5 md:flex-row md:justify-between">
@@ -122,22 +81,36 @@ const OrderDetails = ({ order, loadingStatus }: Props) => {
           {t('text-order-details')} <span className="px-2">-</span>{' '}
           {tracking_number}
         </h2>
-        <div className="flex items-center">
-          {order?.payment_gateway !== 'CASH_ON_DELIVERY' &&
-          order?.payment_status !==
-            PaymentStatus?.FAILED?.toLocaleLowerCase() &&
-          order?.payment_status !==
-            PaymentStatus?.PENDING?.toLocaleLowerCase() ? (
-            <RefundView status={refund?.status} orderId={id} />
-          ) : (
-            ''
+        <div className="flex flex-wrap items-center gap-3">
+          {isCancelled && (
+            <Badge
+              text={t('text-cancelled') as string}
+              color="bg-red-500"
+              className="!mr-0"
+            />
+          )}
+          {cancellable && (
+            <button
+              type="button"
+              onClick={handleCancelClick}
+              disabled={cancelMutation.isLoading}
+              className="flex items-center text-sm font-semibold text-red-500 transition-colors hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {cancelMutation.isLoading
+                ? t('text-cancelling')
+                : confirmOpen
+                  ? t('text-confirm-cancel')
+                  : t('text-cancel-order')}
+            </button>
           )}
           <Link
-            href={Routes.order(tracking_number)}
+            href={`${Routes.trackOrder}?tracking_number=${encodeURIComponent(
+              tracking_number ?? '',
+            )}`}
             className="flex items-center text-sm font-semibold text-accent no-underline transition duration-200 hover:text-accent-hover focus:text-accent-hover"
           >
             <Eye width={20} className="ltr:mr-2 rtl:ml-2" />
-            {t('text-sub-orders')}
+            {t('text-track-order')}
           </Link>
         </div>
       </div>
@@ -202,7 +175,6 @@ const OrderDetails = ({ order, loadingStatus }: Props) => {
         </div>
       </div>
 
-      {/* Order Table */}
       <div>
         <div className="flex w-full items-center justify-center px-6">
           <OrderStatusProgressBox
@@ -215,9 +187,7 @@ const OrderDetails = ({ order, loadingStatus }: Props) => {
           products={products}
           orderId={id}
           orderStatus={order?.order_status}
-          refund={Boolean(
-            order?.refund?.status === RefundStatus?.APPROVED?.toLowerCase(),
-          )}
+          refund={false}
         />
       </div>
     </div>

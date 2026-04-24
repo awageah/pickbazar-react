@@ -1,35 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useAtom } from 'jotai';
 import isEmpty from 'lodash/isEmpty';
 import classNames from 'classnames';
-import { useCreateOrder } from '@/framework/order';
+import { usePlaceOrderMutation } from '@/framework/order';
 import ValidationError from '@/components/ui/validation-error';
 import Button from '@/components/ui/button';
-import { formatOrderedProduct } from '@/lib/format-ordered-product';
 import { useCart } from '@/store/quick-cart/cart.context';
-import { checkoutAtom, discountAtom, walletAtom } from '@/store/checkout';
-import {
-  calculatePaidTotal,
-  calculateTotal,
-} from '@/store/quick-cart/cart.utils';
+import { checkoutAtom } from '@/store/checkout';
 import { useTranslation } from 'next-i18next';
-import { useRouter } from 'next/router';
-import { useLogout, useUser } from '@/framework/user';
-import { PaymentGateway } from '@/types';
-import { useSettings } from '@/framework/settings';
 import Cookies from 'js-cookie';
 import { REVIEW_POPUP_MODAL_KEY } from '@/lib/constants';
+import type { KolshiCreateOrderInput } from '@/types';
 
+/**
+ * Kolshi F.3 / G.4 — `POST /orders` returns `List<OrderDTO>` (one per
+ * shop in the cart). The hook takes care of the redirect:
+ *   - single order → `/orders/{tracking}` (legacy behaviour).
+ *   - multi-order  → `/orders/order-received?ids=…` (new fan-out page).
+ *
+ * Wallet / payment-intent / verified-response logic is removed: Kolshi
+ * has no wallet (N.1) and payment intent is deferred to the H.1 webhook
+ * phase. The only gate here is "contact + gateway + addresses are set".
+ */
 export const PlaceOrderAction: React.FC<{
   className?: string;
   children?: React.ReactNode;
 }> = (props) => {
   const { t } = useTranslation('common');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const { createOrder, isLoading } = useCreateOrder();
-  const { locale }: any = useRouter();
-  const { items } = useCart();
-  const { me } = useUser();
+  const { placeOrder, isLoading } = usePlaceOrderMutation();
+  const { items, isEmpty: isCartEmpty, total } = useCart();
 
   const [
     {
@@ -37,123 +37,82 @@ export const PlaceOrderAction: React.FC<{
       shipping_address,
       delivery_time,
       coupon,
-      verified_response,
       customer_contact,
       customer_name,
       payment_gateway,
-      payment_sub_gateway,
       note,
-      token,
-      payable_amount,
     },
   ] = useAtom(checkoutAtom);
-  const [discount] = useAtom(discountAtom);
-  const [use_wallet_points] = useAtom(walletAtom);
 
-  useEffect(() => {
-    setErrorMessage(null);
-  }, [payment_gateway]);
-
-  const available_items = items?.filter(
-    (item) => !verified_response?.unavailable_products?.includes(item.id),
-  );
-
-  const subtotal = calculateTotal(available_items);
-  const { settings } = useSettings();
-  const freeShippingAmount = settings?.freeShippingAmount;
-  const freeShipping = settings?.freeShipping;
-  let freeShippings = freeShipping && Number(freeShippingAmount) <= subtotal;
-  const total = calculatePaidTotal(
-    {
-      totalAmount: subtotal,
-      tax: verified_response?.total_tax!,
-      shipping_charge: verified_response?.shipping_charge!,
-    },
-    Number(discount),
-  );
-  const handlePlaceOrder = () => {
+  function handlePlaceOrder() {
+    if (isCartEmpty) {
+      setErrorMessage('error-cart-empty');
+      return;
+    }
     if (!customer_contact) {
-      setErrorMessage('Contact Number Is Required');
+      setErrorMessage('error-contact-required');
       return;
     }
-    if (!use_wallet_points && !payment_gateway) {
-      setErrorMessage('Gateway Is Required');
+    if (!payment_gateway) {
+      setErrorMessage('error-gateway-required');
       return;
     }
 
-    const isFullWalletPayment =
-      use_wallet_points && payable_amount == 0 ? true : false;
-    const gateWay = isFullWalletPayment
-      ? PaymentGateway.FULL_WALLET_PAYMENT
-      : payment_gateway;
+    const shippingText =
+      typeof shipping_address?.address === 'string'
+        ? shipping_address.address
+        : shipping_address?.address
+        ? JSON.stringify(shipping_address.address)
+        : undefined;
+    const billingText =
+      typeof billing_address?.address === 'string'
+        ? billing_address.address
+        : billing_address?.address
+        ? JSON.stringify(billing_address.address)
+        : undefined;
 
-    let input = {
-      //@ts-ignore
-      products: available_items?.map((item) => formatOrderedProduct(item)),
-      amount: subtotal,
-      coupon_id: Number(coupon?.id),
-      discount: discount ?? 0,
-      paid_total: total,
-      sales_tax: verified_response?.total_tax,
-      delivery_fee: freeShippings ? 0 : verified_response?.shipping_charge,
-      total,
-      delivery_time: delivery_time?.title,
+    const payload: KolshiCreateOrderInput = {
+      payment_gateway: payment_gateway as unknown as string,
       customer_contact,
-      customer_name,
+      customer_name: customer_name ?? undefined,
       note,
-      payment_gateway: gateWay,
-      payment_sub_gateway,
-      use_wallet_points,
-      isFullWalletPayment,
-      billing_address: {
-        ...(billing_address?.address && billing_address.address),
-      },
-      shipping_address: {
-        ...(shipping_address?.address && shipping_address.address),
-      },
+      delivery_time:
+        typeof delivery_time === 'string'
+          ? delivery_time
+          : (delivery_time as any)?.title ?? '',
+      shipping_address: shippingText,
+      billing_address: billingText,
+      coupon_code: coupon?.code,
     };
-    delete input.billing_address.__typename;
-    delete input.shipping_address.__typename;
-    //@ts-ignore
-    createOrder(input);
-    Cookies.remove(REVIEW_POPUP_MODAL_KEY);
-  };
-  const isDigitalCheckout = available_items.find((item) =>
-    Boolean(item.is_digital),
-  );
 
-  let formatRequiredFields = isDigitalCheckout
-    ? [customer_contact, payment_gateway, available_items]
-    : [
-        customer_contact,
-        payment_gateway,
-        billing_address,
-        shipping_address,
-        delivery_time,
-        available_items,
-      ];
-  if (!isDigitalCheckout && !me) {
-    formatRequiredFields.push(customer_name);
+    setErrorMessage(null);
+    placeOrder(payload as any);
+    Cookies.remove(REVIEW_POPUP_MODAL_KEY);
   }
 
-  const isAllRequiredFieldSelected = formatRequiredFields.every(
-    (item) => !isEmpty(item),
-  );
+  const requiredFields = [
+    customer_contact,
+    payment_gateway,
+    shipping_address,
+    items,
+  ];
+  const isReady = requiredFields.every((v) => !isEmpty(v));
+
   return (
     <>
       <Button
         loading={isLoading}
         className={classNames('mt-5 w-full', props.className)}
         onClick={handlePlaceOrder}
-        disabled={!isAllRequiredFieldSelected || !!isLoading}
+        disabled={!isReady || isLoading || isCartEmpty}
         {...props}
       />
       {errorMessage && (
         <div className="mt-3">
-          <ValidationError message={errorMessage} />
+          <ValidationError message={t(errorMessage)} />
         </div>
       )}
-      {!isAllRequiredFieldSelected && (
+      {!isReady && !errorMessage && (
         <div className="mt-3">
           <ValidationError message={t('text-place-order-helper-text')} />
         </div>

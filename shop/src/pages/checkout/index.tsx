@@ -4,13 +4,11 @@ import Seo from '@/components/seo/seo';
 import { useUser } from '@/framework/user';
 import { AddressType } from '@/framework/utils/constants';
 import { setNewAddress } from '@/lib/constants';
-import { billingAddressAtom, shippingAddressAtom } from '@/store/checkout';
-import { User } from '@/types';
+import { shippingAddressAtom } from '@/store/checkout';
 import { useAtom } from 'jotai';
-import { isEmpty } from 'lodash';
 import { useTranslation } from 'next-i18next';
 import dynamic from 'next/dynamic';
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 export { getStaticProps } from '@/framework/general.ssr';
 
 const ScheduleGrid = dynamic(
@@ -22,22 +20,42 @@ const AddressGrid = dynamic(
 );
 const ContactGrid = dynamic(
   () => import('@/components/checkout/contact/contact-grid'),
-  // { ssr: false }
 );
 const RightSideView = dynamic(
   () => import('@/components/checkout/right-side-view'),
   { ssr: false },
 );
 
+/**
+ * Kolshi F.3 checkout page.
+ *
+ * Changes vs. Pickbazar:
+ *   - Wallet tab / verified-response step removed (F.6 / N.1).
+ *   - Schedule collapses to free-text delivery_time.
+ *   - Single "delivery address" grid — Kolshi addresses have a `type`
+ *     field but the legacy billing/shipping pair is redundant because
+ *     the backend treats either as the primary shipping target. A
+ *     future Phase can reintroduce billing when invoicing lands.
+ *   - Guest branch dropped (F.4): the page is auth-required.
+ */
 export default function CheckoutPage() {
   const { t } = useTranslation();
   const { me } = useUser();
   const { id, address, profile } = me ?? {};
   const [newAddress, setAddress] = useAtom(setNewAddress);
+
   useEffect(() => {
-    // @ts-ignore
+    // @ts-ignore - `address` shape is a union across legacy and Kolshi-native users
     setAddress(address);
-  }, [address]);
+  }, [address, setAddress]);
+
+  const shippingAddresses = (newAddress as any[] | null | undefined)?.filter(
+    (item: any) =>
+      !item?.type ||
+      item?.type === AddressType.Shipping ||
+      item?.type === 'Shipping',
+  );
+
   return (
     <>
       <Seo noindex={true} nofollow={true} />
@@ -54,35 +72,21 @@ export default function CheckoutPage() {
             <AddressGrid
               userId={id!}
               className="bg-light p-5 shadow-700 md:p-8"
-              label={t('text-billing-address')}
+              label={t('text-shipping-address')}
               count={2}
               // @ts-ignore
-              addresses={newAddress?.filter(
-                (item: any) => item?.type === AddressType.Billing,
-              )}
-              //@ts-ignore
-              atom={billingAddressAtom}
-              type={AddressType.Billing}
-            />
-            <AddressGrid
-              userId={me?.id!}
-              className="bg-light p-5 shadow-700 md:p-8"
-              label={t('text-shipping-address')}
-              count={3}
-              //@ts-ignore
-              addresses={newAddress?.filter(
-                (item: any) => item?.type === AddressType.Shipping,
-              )}
-              //@ts-ignore
+              addresses={shippingAddresses}
+              // @ts-ignore
               atom={shippingAddressAtom}
               type={AddressType.Shipping}
             />
+
             <ScheduleGrid
               className="bg-light p-5 shadow-700 md:p-8"
               label={t('text-delivery-schedule')}
-              count={4}
+              count={3}
             />
-            <OrderNote count={5} label={t('Order Note')} />
+            <OrderNote count={4} label={t('Order Note')} />
           </div>
           <div className="mt-10 mb-10 w-full sm:mb-12 lg:mb-0 lg:w-96">
             <RightSideView />

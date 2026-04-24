@@ -1,46 +1,16 @@
-import { formatOrderedProduct } from '@/lib/format-ordered-product';
-import { useAtom } from 'jotai';
-import { billingAddressAtom, shippingAddressAtom } from '@/store/checkout';
-import Button from '@/components/ui/button';
-import { useCart } from '@/store/quick-cart/cart.context';
-import classNames from 'classnames';
-import { useVerifyOrder } from '@/framework/order';
-import omit from 'lodash/omit';
-
+/**
+ * Legacy "check availability" button — Kolshi F.6 `Hide`.
+ *
+ * Kolshi has no pre-place-order verification endpoint, so this
+ * component is now a no-op placeholder. We keep the export to avoid
+ * rewriting every importer; the component renders nothing, so the
+ * template's `UnverifiedItemList` still mounts cleanly but no
+ * button is shown.
+ *
+ * Removed entirely in S6 alongside the checkout "verified"
+ * state machine.
+ */
 export const CheckAvailabilityAction: React.FC<{
   className?: string;
   children?: React.ReactNode;
-}> = (props) => {
-  const [billing_address] = useAtom(billingAddressAtom);
-  const [shipping_address] = useAtom(shippingAddressAtom);
-  const { items, total, isEmpty } = useCart();
-
-  const { mutate: verifyCheckout, isLoading: loading }: any = useVerifyOrder();
-
-  function handleVerifyCheckout() {
-    verifyCheckout({
-      amount: total,
-      products: items?.map((item) => formatOrderedProduct(item)),
-      billing_address: {
-        ...(billing_address?.address &&
-          omit(billing_address.address, ['__typename'])),
-      },
-      shipping_address: {
-        ...(shipping_address?.address &&
-          omit(shipping_address.address, ['__typename'])),
-      },
-    });
-  }
-
-  return (
-    <>
-      <Button
-        loading={loading}
-        className={classNames('mt-5 w-full', props.className)}
-        onClick={handleVerifyCheckout}
-        disabled={isEmpty || loading}
-        {...props}
-      />
-    </>
-  );
-};
+}> = () => null;

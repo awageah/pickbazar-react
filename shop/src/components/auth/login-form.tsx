@@ -1,4 +1,3 @@
-import { useRouter } from 'next/router';
 import { useTranslation } from 'next-i18next';
 import * as yup from 'yup';
 import Logo from '@/components/ui/logo';
@@ -8,13 +7,10 @@ import PasswordInput from '@/components/ui/forms/password-input';
 import Button from '@/components/ui/button';
 import { GoogleIcon } from '@/components/icons/google';
 import { MobileIcon } from '@/components/icons/mobile-icon';
-import { AnonymousIcon } from '@/components/icons/anonymous-icon';
 import { useModalAction } from '@/components/ui/modal/modal.context';
 import { Form } from '@/components/ui/forms/form';
 import { useLogin, useResendVerificationEmail } from '@/framework/user';
 import type { LoginUserInput } from '@/types';
-import { Routes } from '@/config/routes';
-import { useSettings } from '@/framework/settings';
 
 const loginFormSchema = yup.object().shape({
   email: yup
@@ -26,10 +22,7 @@ const loginFormSchema = yup.object().shape({
 
 function LoginForm() {
   const { t } = useTranslation('common');
-  const router = useRouter();
   const { openModal } = useModalAction();
-  const { settings } = useSettings();
-  const isCheckout = router.pathname.includes('checkout');
   const {
     mutate: login,
     isLoading,
@@ -42,7 +35,6 @@ function LoginForm() {
   const { mutate: resendVerification, isLoading: isResending } =
     useResendVerificationEmail();
 
-  const guestCheckout = settings?.guestCheckout;
   const isEmailUnverified = errorCode === 'EMAIL_NOT_VERIFIED';
   const isAccountBlocked = errorCode === 'ACCOUNT_BLOCKED';
 
@@ -164,16 +156,7 @@ function LoginForm() {
           {t('text-login-mobile')} · {t('text-coming-soon')}
         </Button>
 
-        {isCheckout && guestCheckout && (
-          <Button
-            className="h-11 w-full !bg-pink-700 !text-light hover:!bg-pink-800 sm:h-12"
-            disabled={isLoading}
-            onClick={() => router.push(Routes.checkoutGuest)}
-          >
-            <AnonymousIcon className="h-6 text-light ltr:mr-2 rtl:ml-2" />
-            {t('text-guest-checkout')}
-          </Button>
-        )}
+        {/* Kolshi F.4: guest-checkout dropped — sign-in is required. */}
       </div>
       <div className="relative flex flex-col items-center justify-center mt-8 mb-6 text-sm text-heading sm:mt-11 sm:mb-8">
         <hr className="w-full" />

@@ -85,27 +85,53 @@ export function useSubscription() {
   };
 }
 
+/**
+ * `POST /coupons/validate` — server-side coupon check run from the
+ * checkout summary. Returns `{ is_valid, coupon?, discount?, message? }`;
+ * we surface `message` as a form error and apply the coupon atom on
+ * success so the rest of the UI (discount row, free-shipping pill)
+ * re-renders.
+ */
 export function useVerifyCoupon() {
   const { t } = useTranslation();
   const [_, applyCoupon] = useAtom(couponAtom);
   let [formError, setFormError] = useState<any>(null);
-  const { mutate, isLoading } = useMutation(client.coupons.verify, {
+
+  const { mutate, isLoading } = useMutation(client.coupons.validate, {
     onSuccess: (data: any) => {
-      if (!data.is_valid) {
-        setFormError({
-          code: t(`common:${data?.message}`),
-        });
+      if (!data?.is_valid) {
+        setFormError({ code: t(`common:${data?.message ?? 'error-invalid-coupon'}`) });
+        return;
       }
-      applyCoupon(data?.coupon);
+      setFormError(null);
+      applyCoupon(data?.coupon ?? null);
     },
     onError: (error) => {
-      const {
-        response: { data },
-      }: any = error ?? {};
-
-      toast.error(data?.message);
+      const { response: { data } = {} }: any = error ?? {};
+      toast.error(data?.message ?? t('error-invalid-coupon'));
     },
   });
 
   return { mutate, isLoading, formError, setFormError };
+}
+
+/**
+ * `POST /coupons/best-match` — optional helper that returns the
+ * most valuable coupon the user currently qualifies for. Callers
+ * usually render this as a "Use best coupon" button next to the
+ * input. Mirrors `useVerifyCoupon` on success/error handling.
+ */
+export function useBestMatchCoupon() {
+  const { t } = useTranslation();
+  const [_, applyCoupon] = useAtom(couponAtom);
+
+  return useMutation(client.coupons.bestMatch, {
+    onSuccess: (data: any) => {
+      if (data?.coupon) applyCoupon(data.coupon);
+      else toast.info(t('text-no-matching-coupon'));
+    },
+    onError: () => {
+      toast.info(t('text-no-matching-coupon'));
+    },
+  });
 }
