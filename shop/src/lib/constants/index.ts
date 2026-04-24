@@ -3,7 +3,12 @@ import { atom } from 'jotai';
 
 export const CART_KEY = 'pick-cart';
 export const TOKEN = 'token';
-export const AUTH_TOKEN_KEY = 'auth_token';
+/**
+ * Cookie name for the auth payload. Overridable via env so deployments can
+ * shard cookies per environment (e.g. dev vs staging on the same domain).
+ */
+export const AUTH_TOKEN_KEY =
+  process.env.NEXT_PUBLIC_AUTH_TOKEN_KEY ?? 'auth_token';
 export const AUTH_PERMISSIONS = 'auth_permissions';
 export const LIMIT = 10;
 export const LIMIT_HUNDRED = 100;
@@ -16,7 +21,6 @@ export const PRODUCT_INITIAL_FETCH_LIMIT = 30;
 // Kolshi is Arabic-first; fallback was `'en'` in the Pickbazar template.
 export const DEFAULT_LANGUAGE =
   process.env.NEXT_PUBLIC_DEFAULT_LANGUAGE ?? 'ar';
-export const EMAIL_VERIFIED = 'emailVerified';
 export const RESPONSIVE_WIDTH = 1024 as number;
 
 export function getDirection(language: string | undefined) {

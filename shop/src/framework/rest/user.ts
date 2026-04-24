@@ -1,14 +1,29 @@
+import { useState } from 'react';
+import { useAtom } from 'jotai';
+import { useRouter } from 'next/router';
+import { useTranslation } from 'next-i18next';
+import { signOut as socialLoginSignOut } from 'next-auth/react';
+import { toast } from 'react-toastify';
+import { useMutation, useQuery, useQueryClient } from 'react-query';
+import { useStateMachine } from 'little-state-machine';
+
 import {
   initialState,
   updateFormState,
 } from '@/components/auth/forgot-password';
-import { initialOtpState, optAtom } from '@/components/otp/atom';
 import { useModalAction } from '@/components/ui/modal/modal.context';
 import { Routes } from '@/config/routes';
 import client from '@/framework/client';
 import { API_ENDPOINTS } from '@/framework/client/api-endpoints';
-import { setAuthCredentials } from '@/framework/utils/auth-utils';
-import { AUTH_CRED } from '@/framework/utils/constants';
+import {
+  clearAuthCredentials,
+  setAuthCredentials,
+} from '@/framework/utils/auth-utils';
+import {
+  getErrorCode,
+  getFieldErrors,
+  getFormErrors,
+} from '@/framework/utils/error-handler';
 import {
   NEWSLETTER_POPUP_MODAL_KEY,
   REVIEW_POPUP_MODAL_KEY,
@@ -17,31 +32,27 @@ import { useToken } from '@/lib/hooks/use-token';
 import { authorizationAtom } from '@/store/authorization-atom';
 import { clearCheckoutAtom } from '@/store/checkout';
 import type {
+  AuthResponse,
   ChangePasswordUserInput,
+  CreateAddressInput,
+  ForgotPasswordUserInput,
+  LoginUserInput,
   OtpLoginInputType,
   RegisterUserInput,
+  ResendVerificationEmailInput,
+  ResetPasswordUserInput,
+  UpdateAddressInput,
+  UpdateProfileInput,
+  VerifyForgotPasswordUserInput,
 } from '@/types';
-import axios from 'axios';
-import { useAtom } from 'jotai';
-import Cookies from 'js-cookie';
-import { useStateMachine } from 'little-state-machine';
-import { signOut as socialLoginSignOut } from 'next-auth/react';
-import { useTranslation } from 'next-i18next';
-import { useRouter } from 'next/router';
-import { useState } from 'react';
-import {
-  QueryClient,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from 'react-query';
-import { toast } from 'react-toastify';
 
+/**
+ * Source of truth for "is the user logged in?" — checks the `auth_token`
+ * cookie. React-Query caches the `/me` response; the 401 interceptor in
+ * `http-client.ts` handles forced logouts.
+ */
 export function useUser() {
   const [isAuthorized] = useAtom(authorizationAtom);
-  const { setEmailVerified, getEmailVerified } = useToken();
-  const { emailVerified } = getEmailVerified();
-  const router = useRouter();
 
   const { data, isLoading, error, isFetchedAfterMount } = useQuery(
     [API_ENDPOINTS.USERS_ME],
@@ -49,455 +60,244 @@ export function useUser() {
     {
       enabled: isAuthorized,
       retry: false,
-      onSuccess: (data) => {
-        if (emailVerified === false) {
-          setEmailVerified(true);
-          router.reload();
-          return;
-        }
-      },
-      onError: (err) => {
-        if (axios.isAxiosError(err)) {
-          if (err?.response?.status === 409) {
-            setEmailVerified(false);
-            router.push(Routes.verifyEmail);
-            return;
-          }
-          if (router.pathname === Routes.verifyEmail) {
-            return;
-          }
-        }
-      },
     },
   );
-  //TODO: do some improvement here
+
   return {
     me: data,
     isLoading,
     error,
     isAuthorized,
     isFetchedAfterMount,
+    emailVerified: data?.email_verified ?? null,
   };
 }
 
-export const useDeleteAddress = () => {
-  const { closeModal } = useModalAction();
-  const queryClient = useQueryClient();
-  return useMutation(client.users.deleteAddress, {
-    onSuccess: (data) => {
-      if (data) {
-        toast.success('successfully-address-deleted');
-        closeModal();
-        return;
-      }
-    },
-    onError: (error) => {
-      const {
-        response: { data },
-      }: any = error ?? {};
-
-      toast.error(data?.message);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.USERS_ME);
-    },
-  });
-};
-export const useUpdateEmail = () => {
-  const queryClient = useQueryClient();
-  const { t } = useTranslation();
-  return useMutation(client.users.updateEmail, {
-    onSuccess: (data) => {
-      if (data) {
-        toast.success(t('successfully-email-updated'));
-      }
-    },
-    onError: (error) => {
-      const {
-        response: { data },
-      }: any = error ?? {};
-
-      toast.error(data?.message);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.USERS_ME);
-    },
-  });
-};
-
-export const useUpdateUser = () => {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  const { closeModal } = useModalAction();
-  return useMutation(client.users.update, {
-    onSuccess: (data) => {
-      if (data?.id) {
-        // toast.success(`${t('profile-update-successful')}`);
-        closeModal();
-      }
-    },
-    onError: (error) => {
-      toast.error(`${t('error-something-wrong')}`);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.USERS_ME);
-    },
-  });
-};
-
-export const useContact = ({ reset }: { reset: () => void }) => {
+// ─── A1. Register ───────────────────────────────────────────────────────────
+export function useRegister() {
   const { t } = useTranslation('common');
-
-  return useMutation(client.users.contactUs, {
-    onSuccess: (data) => {
-      if (data.success) {
-        toast.success(`${t(data.message)}`);
-        reset();
-      } else {
-        toast.error(`${t(data.message)}`);
-      }
-    },
-    onError: (err) => {
-      console.log(err);
-    },
-  });
-};
-
-export function useLogin() {
-  const { t } = useTranslation('common');
-  const [_, setAuthorized] = useAtom(authorizationAtom);
-  const { closeModal } = useModalAction();
+  const queryClient = useQueryClient();
   const { setToken } = useToken();
-  const queryClient = useQueryClient();
-  let [serverError, setServerError] = useState<string | null>(null);
+  const [, setAuthorized] = useAtom(authorizationAtom);
+  const { closeModal, openModal } = useModalAction();
+  const [formError, setFormError] = useState<Record<string, string> | null>(
+    null,
+  );
+  const [serverError, setServerError] = useState<string | null>(null);
 
-  const { mutate, isLoading } = useMutation(client.users.login, {
-    onSuccess: (data) => {
-      if (!data.token) {
+  const { mutate, isLoading } = useMutation(client.users.register, {
+    onSuccess: (data: AuthResponse) => {
+      if (!data?.token) {
         setServerError('error-credential-wrong');
         return;
       }
-      setToken(data.token);
-      setAuthCredentials(data.token, data.permissions);
+      setToken(data);
+      setAuthCredentials(data);
       setAuthorized(true);
       closeModal();
+      // Registration always requires email verification before most actions.
+      openModal('FORGOT_VIEW');
+      toast.success(t('text-registration-success-verify-email'));
     },
-    onError: (error: Error) => {
-      console.log(error.message);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.NOTIFY_LOGS);
-    },
-  });
-
-  return { mutate, isLoading, serverError, setServerError };
-}
-
-export function useSocialLogin() {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  const { setToken } = useToken();
-  const [_, setAuthorized] = useAtom(authorizationAtom);
-
-  return useMutation(client.users.socialLogin, {
-    onSuccess: (data) => {
-      if (data?.token && data?.permissions?.length) {
-        setToken(data?.token);
-        setAuthorized(true);
+    onError: (err) => {
+      const fieldErrors = getFieldErrors(err);
+      if (fieldErrors) {
+        setFormError(fieldErrors);
         return;
       }
-      if (!data.token) {
-        toast.error(`${t('error-credential-wrong')}`);
-      }
-    },
-    onError: (error: Error) => {
-      console.log(error.message);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.NOTIFY_LOGS);
-      queryClient.clear();
-    },
-  });
-}
-
-export function useSendOtpCode({
-  verifyOnly,
-}: Partial<{ verifyOnly: boolean }> = {}) {
-  let [serverError, setServerError] = useState<string | null>(null);
-  const [otpState, setOtpState] = useAtom(optAtom);
-
-  const { mutate, isLoading } = useMutation(client.users.sendOtpCode, {
-    onSuccess: (data) => {
-      if (!data.success) {
-        setServerError(data.message!);
+      const msg = getFormErrors(err);
+      if (msg) {
+        setServerError(msg);
         return;
       }
-      setOtpState({
-        ...otpState,
-        otpId: data?.id!,
-        isContactExist: data?.is_contact_exist!,
-        phoneNumber: data?.phone_number!,
-        step: data?.is_contact_exist! ? 'OtpForm' : 'RegisterForm',
-        ...(verifyOnly && { step: 'OtpForm' }),
-      });
-    },
-    onError: (error: Error) => {
-      console.log(error.message);
+      setServerError('error-registration-failed');
     },
   });
 
-  return { mutate, isLoading, serverError, setServerError };
-}
-
-export function useVerifyOtpCode({
-  onVerifySuccess,
-}: {
-  onVerifySuccess: Function;
-}) {
-  const [otpState, setOtpState] = useAtom(optAtom);
-  let [serverError, setServerError] = useState<string | null>(null);
-  const { mutate, isLoading } = useMutation(client.users.verifyOtpCode, {
-    onSuccess: (data) => {
-      if (!data.success) {
-        setServerError(data?.message!);
-        return;
-      }
-      if (onVerifySuccess) {
-        onVerifySuccess({
-          phone_number: otpState.phoneNumber,
-        });
-      }
-      setOtpState({
-        ...initialOtpState,
-      });
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
-
-  return { mutate, isLoading, serverError, setServerError };
-}
-
-export function useOtpLogin() {
-  const [otpState, setOtpState] = useAtom(optAtom);
-  const { t } = useTranslation('common');
-  const [_, setAuthorized] = useAtom(authorizationAtom);
-  const { closeModal } = useModalAction();
-  const { setToken } = useToken();
-  const queryClient = new QueryClient();
-  let [serverError, setServerError] = useState<string | null>(null);
-
-  const { mutate: otpLogin, isLoading } = useMutation(client.users.OtpLogin, {
-    onSuccess: (data) => {
-      if (!data.token) {
-        setServerError('text-otp-verify-failed');
-        return;
-      }
-      setToken(data.token!);
-      setAuthorized(true);
-      setOtpState({
-        ...initialOtpState,
-      });
-      closeModal();
-    },
-    onError: (error: Error) => {
-      console.log(error.message);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.NOTIFY_LOGS);
-      queryClient.clear();
-    },
-  });
-
-  function handleSubmit(input: OtpLoginInputType) {
-    otpLogin({
-      ...input,
-      phone_number: otpState.phoneNumber,
-      otp_id: otpState.otpId!,
-    });
-  }
-
-  return { mutate: handleSubmit, isLoading, serverError, setServerError };
-}
-
-export function useRegister() {
-  const { t } = useTranslation('common');
-  const { setToken } = useToken();
-  const queryClient = useQueryClient();
-  const [_, setAuthorized] = useAtom(authorizationAtom);
-  const { closeModal } = useModalAction();
-  let [formError, setFormError] = useState<Partial<RegisterUserInput> | null>(
-    null,
-  );
-
-  const { mutate, isLoading } = useMutation(client.users.register, {
-    onSuccess: (data) => {
-      if (data?.token && data?.permissions?.length) {
-        setToken(data?.token);
-        setAuthorized(true);
-        closeModal();
-        return;
-      }
-      if (!data.token) {
-        toast.error(`${t('error-credential-wrong')}`);
-      }
-    },
-    onError: (error) => {
-      const {
-        response: { data },
-      }: any = error ?? {};
-
-      setFormError(data);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.NOTIFY_LOGS);
-    },
-  });
-
-  return { mutate, isLoading, formError, setFormError };
-}
-export function useResendVerificationEmail() {
-  const { t } = useTranslation('common');
-  const { mutate, isLoading } = useMutation(
-    client.users.resendVerificationEmail,
-    {
-      onSuccess: (data) => {
-        if (data?.success) {
-          toast.success(t('PICKBAZAR_MESSAGE.EMAIL_SENT_SUCCESSFUL'));
-        }
-      },
-      onError: (error) => {
-        const {
-          response: { data },
-        }: any = error ?? {};
-
-        toast.error(data?.message);
-      },
-    },
-  );
-
-  return { mutate, isLoading };
-}
-export function useLogout() {
-  const queryClient = useQueryClient();
-  const { removeToken } = useToken();
-  const [_, setAuthorized] = useAtom(authorizationAtom);
-  const [_r, resetCheckout] = useAtom(clearCheckoutAtom);
-
-  const { mutate: signOut, isLoading } = useMutation(client.users.logout, {
-    onSuccess: (data) => {
-      if (data) {
-        removeToken();
-        Cookies.remove(AUTH_CRED);
-        Cookies.remove(REVIEW_POPUP_MODAL_KEY);
-        Cookies.remove(NEWSLETTER_POPUP_MODAL_KEY);
-        setAuthorized(false);
-        //@ts-ignore
-        resetCheckout();
-        queryClient.refetchQueries(API_ENDPOINTS.USERS_ME);
-      }
-    },
-    onSettled: () => {
-      queryClient.clear();
-    },
-  });
-  function handleLogout() {
-    socialLoginSignOut({ redirect: false });
-    signOut();
-  }
   return {
-    mutate: handleLogout,
+    mutate,
     isLoading,
+    formError,
+    setFormError,
+    serverError,
+    setServerError,
   };
 }
 
-export function useChangePassword() {
-  const { t } = useTranslation('common');
-  let [formError, setFormError] =
-    useState<Partial<ChangePasswordUserInput> | null>(null);
+// ─── A2. Login ──────────────────────────────────────────────────────────────
+/**
+ * On failure the hook exposes both a normalized message (`serverError`) and
+ * the machine-readable `errorCode` so the form can render an
+ * `EMAIL_NOT_VERIFIED` / `ACCOUNT_BLOCKED` banner with the correct CTA.
+ */
+export function useLogin() {
+  const [, setAuthorized] = useAtom(authorizationAtom);
+  const { closeModal } = useModalAction();
+  const { setToken } = useToken();
+  const queryClient = useQueryClient();
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
 
-  const { mutate, isLoading } = useMutation(client.users.changePassword, {
-    onSuccess: (data) => {
-      if (!data.success) {
-        setFormError({
-          oldPassword: data?.message ?? '',
-        });
+  const { mutate: mutateLogin, isLoading } = useMutation(client.users.login, {
+    onSuccess: (data: AuthResponse) => {
+      if (!data?.token) {
+        setServerError('error-credential-wrong');
         return;
       }
-      toast.success(`${t('password-successful')}`);
+      setToken(data);
+      setAuthCredentials(data);
+      setAuthorized(true);
+      closeModal();
+      queryClient.invalidateQueries([API_ENDPOINTS.USERS_ME]);
     },
-    onError: (error) => {
-      const {
-        response: { data },
-      }: any = error ?? {};
-      setFormError(data);
+    onError: (err) => {
+      const code = getErrorCode(err);
+      const msg = getFormErrors(err);
+      setServerError(msg ?? 'error-credential-wrong');
+      setErrorCode(code);
     },
   });
 
-  return { mutate, isLoading, formError, setFormError };
+  function mutate(input: LoginUserInput) {
+    setServerError(null);
+    setErrorCode(null);
+    // Remember the submitted email so the EMAIL_NOT_VERIFIED banner has the
+    // right address to pass to the resend-verification endpoint.
+    setUnverifiedEmail(input.email);
+    mutateLogin(input);
+  }
+
+  return {
+    mutate,
+    isLoading,
+    serverError,
+    setServerError,
+    errorCode,
+    setErrorCode,
+    unverifiedEmail,
+  };
 }
 
+// ─── A8. Logout (client-only) ───────────────────────────────────────────────
+/**
+ * Kolshi has no server-side logout — the cookie IS the session. We drop the
+ * cookie, flush React-Query so the next user doesn't see cached data, and
+ * let `socialLoginSignOut` clean up any dangling NextAuth state from when
+ * social sign-in was a feature.
+ */
+export function useLogout() {
+  const queryClient = useQueryClient();
+  const { removeToken } = useToken();
+  const [, setAuthorized] = useAtom(authorizationAtom);
+  const [, resetCheckout] = useAtom(clearCheckoutAtom);
+  const [isLoading, setIsLoading] = useState(false);
+
+  function handleLogout() {
+    setIsLoading(true);
+    try {
+      removeToken();
+      clearAuthCredentials();
+      // `js-cookie`'s remove is idempotent; these keep popup state tidy.
+      if (typeof document !== 'undefined') {
+        document.cookie = `${REVIEW_POPUP_MODAL_KEY}=; max-age=0; path=/`;
+        document.cookie = `${NEWSLETTER_POPUP_MODAL_KEY}=; max-age=0; path=/`;
+      }
+      setAuthorized(false);
+      // @ts-ignore — `clearCheckoutAtom` is a write-only atom (null setter).
+      resetCheckout();
+      // Fire-and-forget NextAuth cleanup for legacy social sessions.
+      socialLoginSignOut({ redirect: false }).catch(() => undefined);
+      queryClient.clear();
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  return { mutate: handleLogout, isLoading };
+}
+
+// ─── A3 / A7 / A5. Email-verification helpers ───────────────────────────────
+export function useResendVerificationEmail() {
+  const { t } = useTranslation('common');
+  const { mutate, isLoading } = useMutation(
+    (input: ResendVerificationEmailInput) =>
+      client.users.resendVerificationEmail(input),
+    {
+      onSuccess: () => {
+        toast.success(t('PICKBAZAR_MESSAGE.EMAIL_SENT_SUCCESSFUL'));
+      },
+      onError: (err) => {
+        const msg = getFormErrors(err);
+        toast.error(t(msg ?? 'error-something-wrong'));
+      },
+    },
+  );
+  return { mutate, isLoading };
+}
+
+export function useVerifyEmail() {
+  const { t } = useTranslation('common');
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const { mutate, isLoading, isSuccess } = useMutation(
+    ({ token }: { token: string }) => client.users.verifyEmail({ token }),
+    {
+      onSuccess: () => {
+        toast.success(t('text-email-verified-successfully'));
+      },
+      onError: (err) => {
+        const msg = getFormErrors(err);
+        setServerError(msg ?? 'error-invalid-or-expired-token');
+      },
+    },
+  );
+
+  return { mutate, isLoading, isSuccess, serverError, setServerError };
+}
+
+// ─── A5. Forgot-password 3-step flow ────────────────────────────────────────
 export function useForgotPassword() {
   const { actions } = useStateMachine({ updateFormState });
-  let [message, setMessage] = useState<string | null>(null);
-  let [formError, setFormError] = useState<any>(null);
-  const { t } = useTranslation();
+  const [message, setMessage] = useState<string | null>(null);
+  const [formError, setFormError] = useState<any>(null);
 
-  const { mutate, isLoading } = useMutation(client.users.forgotPassword, {
-    onSuccess: (data, variables) => {
-      if (!data.success) {
-        setFormError({
-          email: data?.message ?? '',
+  const { mutate, isLoading } = useMutation(
+    (input: ForgotPasswordUserInput) => client.users.forgotPassword(input),
+    {
+      onSuccess: (data, variables) => {
+        setMessage(data?.message ?? null);
+        actions.updateFormState({
+          email: variables.email,
+          step: 'Token',
         });
-        return;
-      }
-      setMessage(data?.message!);
-      actions.updateFormState({
-        email: variables.email,
-        step: 'Token',
-      });
+      },
+      onError: (err) => {
+        const fieldErrors = getFieldErrors(err);
+        if (fieldErrors) {
+          setFormError(fieldErrors);
+          return;
+        }
+        const msg = getFormErrors(err);
+        setFormError({ email: msg ?? 'error-something-wrong' });
+      },
     },
-  });
+  );
 
   return { mutate, isLoading, message, formError, setFormError, setMessage };
 }
 
-export function useResetPassword() {
-  const queryClient = useQueryClient();
-  const { openModal } = useModalAction();
-  const { actions } = useStateMachine({ updateFormState });
-
-  return useMutation(client.users.resetPassword, {
-    onSuccess: (data) => {
-      if (data?.success) {
-        toast.success('Successfully Reset Password!');
-        actions.updateFormState({
-          ...initialState,
-        });
-        openModal('LOGIN_VIEW');
-        return;
-      }
-    },
-    onSettled: () => {
-      queryClient.clear();
-    },
-  });
-}
-
 export function useVerifyForgotPasswordToken() {
   const { actions } = useStateMachine({ updateFormState });
-  const queryClient = useQueryClient();
-  let [formError, setFormError] = useState<any>(null);
+  const [formError, setFormError] = useState<any>(null);
 
   const { mutate, isLoading } = useMutation(
-    client.users.verifyForgotPasswordToken,
+    (input: VerifyForgotPasswordUserInput) =>
+      client.users.verifyForgotPasswordToken(input),
     {
       onSuccess: (data, variables) => {
-        if (!data.success) {
-          setFormError({
-            token: data?.message ?? '',
-          });
+        if (!data?.valid) {
+          setFormError({ token: 'error-invalid-or-expired-token' });
           return;
         }
         actions.updateFormState({
@@ -505,11 +305,260 @@ export function useVerifyForgotPasswordToken() {
           token: variables.token as string,
         });
       },
-      onSettled: () => {
-        queryClient.clear();
+      onError: (err) => {
+        const fieldErrors = getFieldErrors(err);
+        if (fieldErrors) {
+          setFormError(fieldErrors);
+          return;
+        }
+        const msg = getFormErrors(err);
+        setFormError({ token: msg ?? 'error-invalid-or-expired-token' });
       },
     },
   );
 
   return { mutate, isLoading, formError, setFormError };
+}
+
+export function useResetPassword() {
+  const { t } = useTranslation('common');
+  const queryClient = useQueryClient();
+  const { openModal } = useModalAction();
+  const { actions } = useStateMachine({ updateFormState });
+
+  return useMutation(
+    (input: ResetPasswordUserInput) => client.users.resetPassword(input),
+    {
+      onSuccess: () => {
+        toast.success(t('text-password-reset-successfully'));
+        actions.updateFormState({ ...initialState });
+        openModal('LOGIN_VIEW');
+      },
+      onError: (err) => {
+        const msg = getFormErrors(err);
+        toast.error(t(msg ?? 'error-something-wrong'));
+      },
+      onSettled: () => {
+        queryClient.clear();
+      },
+    },
+  );
+}
+
+// ─── B2. Update profile (name + email are NOT editable in Kolshi) ──────────
+export function useUpdateProfile() {
+  const { t } = useTranslation('common');
+  const queryClient = useQueryClient();
+  const { closeModal } = useModalAction();
+
+  return useMutation(
+    (input: UpdateProfileInput) => client.users.updateProfile(input),
+    {
+      onSuccess: () => {
+        toast.success(t('profile-update-successful'));
+        closeModal();
+      },
+      onError: (err) => {
+        const msg = getFormErrors(err);
+        toast.error(t(msg ?? 'error-something-wrong'));
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries([API_ENDPOINTS.USERS_ME]);
+      },
+    },
+  );
+}
+
+/** Back-compat alias — legacy components still import `useUpdateUser`. */
+export const useUpdateUser = useUpdateProfile;
+
+// ─── B3–B8. Address CRUD ────────────────────────────────────────────────────
+export function useAddresses() {
+  const [isAuthorized] = useAtom(authorizationAtom);
+  return useQuery(
+    [API_ENDPOINTS.ME_ADDRESSES],
+    () => client.users.addresses.all(),
+    { enabled: isAuthorized, retry: false },
+  );
+}
+
+export function useCreateAddress() {
+  const { t } = useTranslation('common');
+  const queryClient = useQueryClient();
+  const { closeModal } = useModalAction();
+
+  return useMutation(
+    (input: CreateAddressInput) => client.users.addresses.create(input),
+    {
+      onSuccess: () => {
+        toast.success(t('text-address-saved'));
+        closeModal();
+      },
+      onError: (err) => {
+        const msg = getFormErrors(err);
+        toast.error(t(msg ?? 'error-something-wrong'));
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries([API_ENDPOINTS.ME_ADDRESSES]);
+        queryClient.invalidateQueries([API_ENDPOINTS.USERS_ME]);
+      },
+    },
+  );
+}
+
+export function useUpdateAddress() {
+  const { t } = useTranslation('common');
+  const queryClient = useQueryClient();
+  const { closeModal } = useModalAction();
+
+  return useMutation(
+    ({
+      id,
+      input,
+    }: {
+      id: string | number;
+      input: UpdateAddressInput;
+    }) => client.users.addresses.update(id, input),
+    {
+      onSuccess: () => {
+        toast.success(t('text-address-updated'));
+        closeModal();
+      },
+      onError: (err) => {
+        const msg = getFormErrors(err);
+        toast.error(t(msg ?? 'error-something-wrong'));
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries([API_ENDPOINTS.ME_ADDRESSES]);
+        queryClient.invalidateQueries([API_ENDPOINTS.USERS_ME]);
+      },
+    },
+  );
+}
+
+export function useSetDefaultAddress() {
+  const { t } = useTranslation('common');
+  const queryClient = useQueryClient();
+  return useMutation(
+    (id: string | number) => client.users.addresses.setDefault(id),
+    {
+      onSuccess: () => {
+        toast.success(t('text-default-address-updated'));
+      },
+      onError: (err) => {
+        const msg = getFormErrors(err);
+        toast.error(t(msg ?? 'error-something-wrong'));
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries([API_ENDPOINTS.ME_ADDRESSES]);
+        queryClient.invalidateQueries([API_ENDPOINTS.USERS_ME]);
+      },
+    },
+  );
+}
+
+export const useDeleteAddress = () => {
+  const { t } = useTranslation('common');
+  const { closeModal } = useModalAction();
+  const queryClient = useQueryClient();
+  return useMutation(
+    ({ id }: { id: string | number }) => client.users.addresses.delete(id),
+    {
+      onSuccess: () => {
+        toast.success(t('successfully-address-deleted'));
+        closeModal();
+      },
+      onError: (err) => {
+        const msg = getFormErrors(err);
+        toast.error(t(msg ?? 'error-something-wrong'));
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries([API_ENDPOINTS.ME_ADDRESSES]);
+        queryClient.invalidateQueries([API_ENDPOINTS.USERS_ME]);
+      },
+    },
+  );
+};
+
+// ─── Hidden / Coming-Soon shims (keep legacy consumers compiling) ───────────
+// Decision log — A.6 Hide. Keep the hook so the component compiles; the page
+// is redirected away in `pages/change-password.tsx`.
+export function useChangePassword() {
+  const [formError, setFormError] =
+    useState<Partial<ChangePasswordUserInput> | null>(null);
+  const { mutate, isLoading } = useMutation(client.users.changePassword, {
+    onError: (err) => {
+      const fieldErrors = getFieldErrors(err);
+      setFormError((fieldErrors as any) ?? null);
+    },
+  });
+  return { mutate, isLoading, formError, setFormError };
+}
+
+/** B.7 Hide — no backend endpoint exists for email change. */
+export function useUpdateEmail() {
+  return useMutation(client.users.updateEmail, {
+    onError: () => {
+      toast.error('Email change is not available.');
+    },
+  });
+}
+
+/** L.5 Delete — kept as no-op so vendor-contact-form still compiles. */
+export function useContact(_opts?: { reset?: () => void }) {
+  return useMutation(client.users.contactUs, {
+    onError: () => {
+      toast.error('Contact form is not available yet.');
+    },
+  });
+}
+
+// ─── A.3 / A.4 Coming-Soon surface ──────────────────────────────────────────
+function comingSoon() {
+  toast.error('This feature is coming soon.');
+}
+
+export function useSocialLogin() {
+  return useMutation(
+    async (_input: unknown) => {
+      comingSoon();
+      return Promise.reject<AuthResponse>(
+        new Error('Social login is coming soon.'),
+      );
+    },
+    { retry: false },
+  );
+}
+
+export function useSendOtpCode(_opts?: { verifyOnly?: boolean }) {
+  const [serverError, setServerError] = useState<string | null>(null);
+  return {
+    mutate: () => comingSoon(),
+    isLoading: false,
+    serverError,
+    setServerError,
+  };
+}
+
+export function useVerifyOtpCode(_opts?: { onVerifySuccess?: Function }) {
+  const [serverError, setServerError] = useState<string | null>(null);
+  return {
+    mutate: () => comingSoon(),
+    isLoading: false,
+    serverError,
+    setServerError,
+  };
+}
+
+export function useOtpLogin() {
+  const [serverError, setServerError] = useState<string | null>(null);
+  function handleSubmit(_input: OtpLoginInputType) {
+    comingSoon();
+  }
+  return {
+    mutate: handleSubmit,
+    isLoading: false,
+    serverError,
+    setServerError,
+  };
 }

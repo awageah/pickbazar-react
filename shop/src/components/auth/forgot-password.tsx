@@ -38,7 +38,10 @@ const tokenFormValidation = yup.object().shape({
   token: yup.string().required('error-password-required'),
 });
 const passwordFormValidation = yup.object().shape({
-  password: yup.string().required(),
+  password: yup
+    .string()
+    .min(8, 'error-password-min-length')
+    .required('error-password-required'),
 });
 
 function EmailForm({
@@ -211,13 +214,17 @@ function RenderFormSteps() {
   const passwordFormHandle: SubmitHandler<
     Pick<ResetPasswordUserInput, 'password'>
   > = ({ password }) => {
-    resetPassword({ password, token: state.token, email: state.email });
+    // Kolshi ignores `email` — only `token` + `newPassword` are consumed.
+    resetPassword({
+      token: state.token,
+      newPassword: password as string,
+    });
   };
 
   const tokenFormHandle: SubmitHandler<
     Pick<VerifyForgotPasswordUserInput, 'token'>
   > = ({ token }) => {
-    verifyForgotPasswordToken({ token, email: state.email });
+    verifyForgotPasswordToken({ token });
   };
   function backToPreviousStep(step: GlobalState['step']) {
     actions.updateFormState({

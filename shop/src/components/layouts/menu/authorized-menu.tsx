@@ -14,6 +14,12 @@ const AuthorizedMenu: React.FC<{ minimal?: boolean }> = ({ minimal }) => {
   const { me } = useUser();
   const router = useRouter();
   const { t } = useTranslation('common');
+  const avatarSrc =
+    typeof me?.profile?.avatar === 'object' && me?.profile?.avatar?.thumbnail
+      ? me.profile.avatar.thumbnail
+      : typeof me?.profile?.avatar === 'string'
+      ? me.profile.avatar
+      : avatarPlaceholder;
 
   function handleClick(path: string) {
     router.push(path);
@@ -29,7 +35,7 @@ const AuthorizedMenu: React.FC<{ minimal?: boolean }> = ({ minimal }) => {
           <UserOutlinedIcon className="h-5 w-5" />
         ) : (
           <Avatar
-            src={me?.profile?.avatar?.thumbnail ?? avatarPlaceholder}
+            src={avatarSrc}
             title="user name"
             className="h-[38px] w-[38px] border-border-200"
           />
@@ -55,12 +61,6 @@ const AuthorizedMenu: React.FC<{ minimal?: boolean }> = ({ minimal }) => {
             }
           )}
         >
-          <Menu.Item>
-            <li className="flex w-full items-center justify-between bg-accent-500 px-6 py-4 text-xs font-semibold capitalize text-light focus:outline-none ltr:text-left rtl:text-right">
-              <span>{t('text-points')}</span>
-              <span>{me?.wallet?.available_points ?? 0}</span>
-            </li>
-          </Menu.Item>
           {siteSettings.authorizedLinks.map(({ href, label }) => (
             <Menu.Item key={`${href}${label}`}>
               {({ active }) => (

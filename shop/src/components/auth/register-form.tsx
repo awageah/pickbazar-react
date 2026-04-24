@@ -1,39 +1,64 @@
 import { useRouter } from 'next/router';
+import { useTranslation } from 'next-i18next';
+import * as yup from 'yup';
 import Logo from '@/components/ui/logo';
 import Input from '@/components/ui/forms/input';
 import PasswordInput from '@/components/ui/forms/password-input';
 import Button from '@/components/ui/button';
-import { useTranslation } from 'next-i18next';
+import Alert from '@/components/ui/alert';
 import { useModalAction } from '@/components/ui/modal/modal.context';
 import { Form } from '@/components/ui/forms/form';
 import type { RegisterUserInput } from '@/types';
-import * as yup from 'yup';
 import { useRegister } from '@/framework/user';
 
+/**
+ * Kolshi validation rules (from `kolshi-backend/docs/handoff/...`):
+ * - `name`: 2–100 chars
+ * - `email`: valid email
+ * - `password`: min 8 chars, @StrongPassword — final enforcement is server-side
+ */
 const registerFormSchema = yup.object().shape({
-  name: yup.string().required('error-name-required'),
+  name: yup
+    .string()
+    .trim()
+    .min(2, 'error-name-too-short')
+    .max(100, 'error-name-too-long')
+    .required('error-name-required'),
   email: yup
     .string()
     .email('error-email-format')
     .required('error-email-required'),
-  password: yup.string().required('error-password-required'),
+  password: yup
+    .string()
+    .min(8, 'error-password-min-length')
+    .required('error-password-required'),
 });
 
 function RegisterForm() {
   const { t } = useTranslation('common');
   const { openModal } = useModalAction();
-  const { mutate, isLoading, formError } = useRegister();
+  const {
+    mutate,
+    isLoading,
+    formError,
+    serverError,
+    setServerError,
+  } = useRegister();
 
   function onSubmit({ name, email, password }: RegisterUserInput) {
-    mutate({
-      name,
-      email,
-      password,
-    });
+    setServerError(null);
+    mutate({ name, email, password });
   }
 
   return (
     <>
+      <Alert
+        variant="error"
+        message={serverError ? t(serverError) : undefined}
+        className="mb-6"
+        closeable
+        onClose={() => setServerError(null)}
+      />
       <Form<RegisterUserInput>
         onSubmit={onSubmit}
         validationSchema={registerFormSchema}
@@ -75,7 +100,6 @@ function RegisterForm() {
           </>
         )}
       </Form>
-      {/* End of forgot register form */}
 
       <div className="relative mt-8 mb-6 flex flex-col items-center justify-center text-sm text-heading sm:mt-11 sm:mb-8">
         <hr className="w-full" />
@@ -95,6 +119,7 @@ function RegisterForm() {
     </>
   );
 }
+
 export default function RegisterView() {
   const { t } = useTranslation('common');
   const router = useRouter();

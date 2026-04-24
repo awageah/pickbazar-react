@@ -1,35 +1,22 @@
 import { useTranslation } from 'next-i18next';
-import { useModalState } from '@/components/ui/modal/modal.context';
-import OtpForm from '@/components/otp/otp-form';
-import { useUpdateUser } from '@/framework/user';
 
+/**
+ * `A.4 Coming Soon` — Contact-number update used to flow through an OTP
+ * verification modal. The OTP plumbing is dormant in Kolshi S2, so this
+ * component is a no-op placeholder retained only because
+ * `managed-modal.tsx` still registers the `ADD_OR_UPDATE_PROFILE_CONTACT`
+ * view id. The view is never opened from the S2 profile UI.
+ */
 const ProfileAddOrUpdateContact = () => {
   const { t } = useTranslation('common');
-  const {
-    data: { customerId, contact, profileId },
-  } = useModalState();
-  const { mutate: updateProfile } = useUpdateUser();
-
-  function onContactUpdate({ phone_number }: { phone_number: string }) {
-    if (!customerId) {
-      return false;
-    }
-    updateProfile({
-      id: customerId,
-      profile: {
-        id: profileId,
-        contact: phone_number,
-      },
-    });
-  }
-
   return (
     <div className="flex min-h-screen flex-col justify-center bg-light p-5 sm:p-8 md:min-h-0 md:rounded-xl">
-      <h1 className="mb-5 text-center text-sm font-semibold text-heading sm:mb-6">
-        {contact ? t('text-update') : t('text-add-new')}{' '}
+      <h1 className="mb-3 text-center text-sm font-semibold text-heading">
         {t('text-contact-number')}
       </h1>
-      <OtpForm phoneNumber={contact} onVerifySuccess={onContactUpdate} />
+      <p className="text-center text-sm text-sub-heading">
+        {t('text-feature-coming-soon')}
+      </p>
     </div>
   );
 };

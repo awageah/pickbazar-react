@@ -665,11 +665,21 @@ export enum RefundStatus {
   PROCESSING = 'Processing',
 }
 
+/**
+ * Kolshi flattens addresses to a single `address: string` field.
+ * `address.address` (nested object) is retained ONLY so legacy consumers
+ * that haven't been migrated yet keep compiling; S2 code must not read it.
+ */
+export enum KolshiAddressType {
+  Shipping = 'SHIPPING',
+  Billing = 'BILLING',
+}
+
 export interface Address {
-  id: string;
+  id: string | number;
   title: string;
-  type: any;
-  address: {
+  /** Kolshi: flat string. Legacy nested object kept optional for back-compat. */
+  address: string | {
     __typename?: string;
     country: string;
     city: string;
@@ -677,27 +687,56 @@ export interface Address {
     zip: string;
     street_address: string;
   };
-  location: GoogleMapLocation;
+  type: KolshiAddressType | string;
+  is_default?: boolean;
+  location?: GoogleMapLocation;
+}
+
+export interface CreateAddressInput {
+  title: string;
+  address: string;
+  type: KolshiAddressType;
+  is_default?: boolean;
+}
+
+export type UpdateAddressInput = Partial<CreateAddressInput>;
+
+export interface UpdateProfileInput {
+  avatar?: string | null;
+  bio?: string | null;
+  contact?: string | null;
 }
 
 export interface User {
-  id: string;
+  id: string | number;
   name: string;
   email: string;
-  wallet: {
+  role?: string;
+  is_active?: boolean;
+  permissions?: string[];
+  email_verified?: boolean;
+  /** Legacy Pickbazar wallet object — Kolshi returns `null`. */
+  wallet?: {
     total_points: number;
     points_used: number;
     available_points: number;
-  };
-  profile: {
-    id?: string;
+  } | null;
+  profile?: {
+    id?: string | number;
+    user_id?: string | number;
     contact?: string;
     bio?: string;
-    avatar?: Attachment;
+    avatar?: string | Attachment;
   };
-  address: Address[];
+  /** Kolshi field. */
+  addresses?: Address[];
+  /** Legacy alias still read by a few un-migrated components. */
+  address?: Address[];
+  shops?: Shop[];
+  created_at?: string;
+  updated_at?: string;
   payment_gateways?: UserPaymentGateway[];
-  last_order: Order;
+  last_order?: Order;
 }
 
 export interface UserPaymentGateway {
@@ -734,15 +773,21 @@ export interface ForgotPasswordUserInput {
   email: string;
 }
 
+/**
+ * Kolshi accepts only `{ token, newPassword }` on `/auth/reset-password`.
+ * `email` and legacy `password` remain optional so the form can keep
+ * populating them without type errors — the client drops them before send.
+ */
 export interface ResetPasswordUserInput {
-  email: string;
   token: string;
-  password: string;
+  newPassword: string;
+  password?: string;
+  email?: string;
 }
 
 export interface VerifyForgotPasswordUserInput {
   token: string;
-  email: string;
+  email?: string;
 }
 
 export interface ChangePasswordUserInput {
@@ -760,9 +805,20 @@ export interface VerificationEmailUserInput extends Success {
   email: string;
 }
 
+export interface VerifyEmailInput {
+  token: string;
+}
+
+export interface ResendVerificationEmailInput {
+  email: string;
+}
+
 export interface AuthResponse {
   token: string;
   permissions: string[];
+  role?: string;
+  token_type?: string;
+  expires_in?: number;
 }
 
 export interface OTPResponse {

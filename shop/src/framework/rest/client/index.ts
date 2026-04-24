@@ -402,59 +402,128 @@ class Client {
       }),
   };
   users = {
+    // ─── Core auth (Kolshi A-section) ────────────────────────────────────
     me: () => HttpClient.get<User>(API_ENDPOINTS.USERS_ME),
-    update: (user: UpdateUserInput) =>
-      HttpClient.put<User>(`${API_ENDPOINTS.USERS}/${user.id}`, user),
     login: (input: LoginUserInput) =>
       HttpClient.post<AuthResponse>(API_ENDPOINTS.USERS_LOGIN, input),
-    socialLogin: (input: SocialLoginInputType) =>
-      HttpClient.post<AuthResponse>(API_ENDPOINTS.SOCIAL_LOGIN, input),
-    sendOtpCode: (input: SendOtpCodeInputType) =>
-      HttpClient.post<OTPResponse>(API_ENDPOINTS.SEND_OTP_CODE, input),
-    verifyOtpCode: (input: VerifyOtpInputType) =>
-      HttpClient.post<OTPVerifyResponse>(API_ENDPOINTS.VERIFY_OTP_CODE, input),
-    OtpLogin: (input: OtpLoginInputType) =>
-      HttpClient.post<AuthResponse>(API_ENDPOINTS.OTP_LOGIN, input),
     register: (input: RegisterUserInput) =>
       HttpClient.post<AuthResponse>(API_ENDPOINTS.USERS_REGISTER, input),
+
     forgotPassword: (input: ForgotPasswordUserInput) =>
-      HttpClient.post<PasswordChangeResponse>(
+      HttpClient.post<{ message: string }>(
         API_ENDPOINTS.USERS_FORGOT_PASSWORD,
-        input,
+        { email: input.email },
       ),
+    /**
+     * Kolshi exposes token validation as `GET /auth/validate-reset-token?token=`.
+     * We translate the Pickbazar-shaped payload (`{ token, email }`) down to the
+     * query param the backend actually consumes — `email` is ignored.
+     */
     verifyForgotPasswordToken: (input: VerifyForgotPasswordUserInput) =>
-      HttpClient.post<PasswordChangeResponse>(
+      HttpClient.get<{ valid: boolean }>(
         API_ENDPOINTS.USERS_VERIFY_FORGOT_PASSWORD_TOKEN,
-        input,
+        { token: input.token },
       ),
     resetPassword: (input: ResetPasswordUserInput) =>
-      HttpClient.post<PasswordChangeResponse>(
+      HttpClient.post<{ message: string }>(
         API_ENDPOINTS.USERS_RESET_PASSWORD,
-        input,
+        {
+          token: input.token,
+          newPassword: input.newPassword ?? input.password,
+        },
       ),
-    changePassword: (input: ChangePasswordUserInput) =>
-      HttpClient.post<PasswordChangeResponse>(
-        API_ENDPOINTS.USERS_CHANGE_PASSWORD,
-        input,
+
+    verifyEmail: ({ token }: { token: string }) =>
+      HttpClient.get<{ message: string }>(
+        API_ENDPOINTS.AUTH_VERIFY_EMAIL,
+        { token },
       ),
-    updateEmail: (input: UpdateEmailUserInput) =>
-      HttpClient.post<EmailChangeResponse>(
-        API_ENDPOINTS.USERS_UPDATE_EMAIL,
-        input,
-      ),
-    logout: () => HttpClient.post<boolean>(API_ENDPOINTS.USERS_LOGOUT, {}),
-    deleteAddress: ({ id }: { id: string }) =>
-      HttpClient.delete<boolean>(`${API_ENDPOINTS.USERS_ADDRESS}/${id}`),
-    subscribe: (input: { email: string }) =>
-      HttpClient.post<any>(API_ENDPOINTS.USERS_SUBSCRIBE_TO_NEWSLETTER, input),
-    contactUs: (input: CreateContactUsInput) =>
-      HttpClient.post<any>(API_ENDPOINTS.USERS_CONTACT_US, input),
-    resendVerificationEmail: () => {
-      return HttpClient.post<VerificationEmailUserInput>(
+    resendVerificationEmail: (input: { email: string }) =>
+      HttpClient.post<{ message: string }>(
         API_ENDPOINTS.SEND_VERIFICATION_EMAIL,
-        {},
-      );
+        { email: input.email },
+      ),
+
+    // ─── Profile (B1, B2) ────────────────────────────────────────────────
+    updateProfile: (input: {
+      avatar?: string | null;
+      bio?: string | null;
+      contact?: string | null;
+    }) => HttpClient.put<any>(API_ENDPOINTS.ME_PROFILE, input),
+
+    // ─── Addresses (B3–B8) ───────────────────────────────────────────────
+    addresses: {
+      all: () => HttpClient.get<any[]>(API_ENDPOINTS.ME_ADDRESSES),
+      get: (id: string | number) =>
+        HttpClient.get<any>(`${API_ENDPOINTS.ME_ADDRESSES}/${id}`),
+      create: (input: {
+        title: string;
+        address: string;
+        type: string;
+        is_default?: boolean;
+      }) => HttpClient.post<any>(API_ENDPOINTS.ME_ADDRESSES, input),
+      update: (
+        id: string | number,
+        input: Partial<{
+          title: string;
+          address: string;
+          type: string;
+          is_default: boolean;
+        }>,
+      ) => HttpClient.put<any>(`${API_ENDPOINTS.ME_ADDRESSES}/${id}`, input),
+      delete: (id: string | number) =>
+        HttpClient.delete<void>(`${API_ENDPOINTS.ME_ADDRESSES}/${id}`),
+      setDefault: (id: string | number) =>
+        HttpClient.post<any>(
+          `${API_ENDPOINTS.ME_ADDRESSES}/${id}/default`,
+          {},
+        ),
     },
+    deleteAddress: ({ id }: { id: string | number }) =>
+      HttpClient.delete<void>(`${API_ENDPOINTS.ME_ADDRESSES}/${id}`),
+
+    // ─── Kolshi has no server-side logout — caller drops the cookie. ─────
+    logout: async () => Promise.resolve(true),
+
+    // ─── Legacy / NYI surface kept as compiling stubs ────────────────────
+    // Direct user-PUT (admin-only in Kolshi) — no shop UI should call this.
+    update: (_user: UpdateUserInput) =>
+      Promise.reject<User>(
+        new Error('Direct user updates are not supported in Kolshi.'),
+      ),
+    // Email change has no dedicated endpoint; decision log marks B.7 as Hide.
+    updateEmail: (_input: UpdateEmailUserInput) =>
+      Promise.reject<EmailChangeResponse>(
+        new Error('Email change is not available yet.'),
+      ),
+    // Password change route is hidden (A.6 Hide). Leaving the call alive but
+    // pointed at `/me/password` so a future phase can surface the UI.
+    changePassword: (input: ChangePasswordUserInput) =>
+      HttpClient.put<PasswordChangeResponse>(
+        API_ENDPOINTS.ME_PASSWORD,
+        {
+          currentPassword: (input as any).oldPassword ?? input.newPassword,
+          newPassword: input.newPassword,
+        },
+      ),
+    // Coming Soon — A.3 / A.4
+    socialLogin: (_input: SocialLoginInputType) =>
+      Promise.reject<AuthResponse>(
+        new Error('Social login is coming soon.'),
+      ),
+    sendOtpCode: (_input: SendOtpCodeInputType) =>
+      Promise.reject<OTPResponse>(new Error('OTP login is coming soon.')),
+    verifyOtpCode: (_input: VerifyOtpInputType) =>
+      Promise.reject<OTPVerifyResponse>(
+        new Error('OTP login is coming soon.'),
+      ),
+    OtpLogin: (_input: OtpLoginInputType) =>
+      Promise.reject<AuthResponse>(new Error('OTP login is coming soon.')),
+    // Marketing / misc — scheduled for Delete in S6
+    subscribe: (_input: { email: string }) =>
+      Promise.reject<any>(new Error('Newsletter signup is not available.')),
+    contactUs: (_input: CreateContactUsInput) =>
+      Promise.reject<any>(new Error('Contact form is not available.')),
   };
   wishlist = {
     all: (params: WishlistQueryOptions) =>

@@ -1,5 +1,4 @@
 import { Routes } from '@/config/routes';
-import { PaymentGateway } from '@/types';
 
 export const siteSettings = {
   name: 'PickBazar',
@@ -25,6 +24,9 @@ export const siteSettings = {
       default: 'Argon',
     },
   },
+  // Kolshi S2 scope: profile, orders, notifications, wishlist, checkout.
+  // Legacy entries (refunds / questions / reports / downloads / cards / help /
+  // change-password) are pruned per the decision log §B.4 and §A.6.
   authorizedLinks: [
     { href: Routes.profile, label: 'auth-menu-profile' },
     { href: Routes.orders, label: 'auth-menu-my-orders' },
@@ -35,65 +37,15 @@ export const siteSettings = {
     { href: Routes.profile, label: 'auth-menu-profile' },
     { href: Routes.notifyLogs, label: 'profile-sidebar-notifications' },
     { href: Routes.orders, label: 'auth-menu-my-orders' },
-    { href: Routes.cards, label: 'profile-sidebar-my-cards' },
     { href: Routes.wishlists, label: 'profile-sidebar-my-wishlist' },
-    { href: Routes.questions, label: 'profile-sidebar-my-questions' },
-    { href: Routes.refunds, label: 'text-my-refunds' },
-    { href: Routes.reports, label: 'profile-sidebar-my-reports' },
     { href: Routes.checkout, label: 'auth-menu-checkout' },
-    { href: Routes.changePassword, label: 'profile-sidebar-password' },
   ],
   dashboardSidebarMenu: [
-    {
-      href: Routes.profile,
-      label: 'profile-sidebar-profile',
-    },
-    {
-      href: Routes.changePassword,
-      label: 'profile-sidebar-password',
-    },
-    {
-      href: Routes.notifyLogs,
-      label: 'profile-sidebar-notifications',
-    },
-    {
-      href: Routes.cards,
-      label: 'profile-sidebar-my-cards',
-      // MultiPayment: Make it dynamic or from mapper
-      cardsPayment: [PaymentGateway.STRIPE],
-    },
-    {
-      href: Routes.orders,
-      label: 'profile-sidebar-orders',
-    },
-    {
-      href: Routes.downloads,
-      label: 'profile-sidebar-downloads',
-    },
-    {
-      href: Routes.wishlists,
-      label: 'profile-sidebar-my-wishlist',
-    },
-    {
-      href: Routes.questions,
-      label: 'profile-sidebar-my-questions',
-    },
-    {
-      href: Routes.refunds,
-      label: 'text-my-refunds',
-    },
-    {
-      href: Routes.reports,
-      label: 'profile-sidebar-my-reports',
-    },
-    {
-      href: Routes.help,
-      label: 'profile-sidebar-help',
-    },
-    {
-      href: Routes.logout,
-      label: 'profile-sidebar-logout',
-    },
+    { href: Routes.profile, label: 'profile-sidebar-profile' },
+    { href: Routes.notifyLogs, label: 'profile-sidebar-notifications' },
+    { href: Routes.orders, label: 'profile-sidebar-orders' },
+    { href: Routes.wishlists, label: 'profile-sidebar-my-wishlist' },
+    { href: Routes.logout, label: 'profile-sidebar-logout' },
   ],
   sellingAdvertisement: {
     image: {

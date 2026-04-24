@@ -2,60 +2,59 @@ import Button from '@/components/ui/button';
 import Input from '@/components/ui/forms/input';
 import Label from '@/components/ui/forms/label';
 import Radio from '@/components/ui/forms/radio/radio';
-import { Controller } from 'react-hook-form';
 import TextArea from '@/components/ui/forms/text-area';
 import { useTranslation } from 'next-i18next';
 import * as yup from 'yup';
-import { useModalState } from '@/components/ui/modal/modal.context';
+import {
+  useModalAction,
+  useModalState,
+} from '@/components/ui/modal/modal.context';
 import { Form } from '@/components/ui/forms/form';
 import { AddressType } from '@/framework/utils/constants';
-import { GoogleMapLocation } from '@/types';
-import { useUpdateUser } from '@/framework/user';
-import GooglePlacesAutocomplete from '@/components/form/google-places-autocomplete';
-import { useSettings } from '@/framework/settings';
-import { useAtom } from 'jotai';
-import { setNewAddress } from '@/lib/constants';
+import { useCreateAddress, useUpdateAddress } from '@/framework/user';
+import { KolshiAddressType } from '@/types';
 
-type FormValues = {
+type AddressFormValues = {
   title: string;
-  type: AddressType;
-  address: {
-    country: string;
-    city: string;
-    state: string;
-    zip: string;
-    street_address: string;
-  };
-  location: GoogleMapLocation;
+  address: string;
+  type: KolshiAddressType;
+  is_default: boolean;
 };
 
+/**
+ * Kolshi addresses are a flat `{ title, address, type, is_default }` triad —
+ * the old country/city/state/zip/street_address grid is gone. Keep this form
+ * small and let validation mirror the backend's constraints.
+ */
 const addressSchema = yup.object().shape({
+  title: yup.string().trim().required('error-title-required'),
+  address: yup.string().trim().required('error-address-required'),
   type: yup
     .string()
-    .oneOf([AddressType.Billing, AddressType.Shipping])
+    .oneOf([AddressType.Shipping, AddressType.Billing])
     .required('error-type-required'),
-  title: yup.string().required('error-title-required'),
-  address: yup.object().shape({
-    country: yup.string().required('error-country-required'),
-    city: yup.string().required('error-city-required'),
-    state: yup.string().required('error-state-required'),
-    zip: yup.string().required('error-zip-required'),
-    street_address: yup.string().required('error-street-required'),
-  }),
+  is_default: yup.boolean(),
 });
 
-export const AddressForm: React.FC<any> = ({
+type InnerProps = {
+  onSubmit: (values: AddressFormValues) => void;
+  defaultValues: AddressFormValues;
+  isLoading?: boolean;
+  isEditing?: boolean;
+};
+
+export const AddressForm: React.FC<InnerProps> = ({
   onSubmit,
   defaultValues,
   isLoading,
+  isEditing,
 }) => {
   const { t } = useTranslation('common');
-  const { settings } = useSettings();
   return (
-    <Form<FormValues>
+    <Form<AddressFormValues>
       onSubmit={onSubmit}
       className="grid h-full grid-cols-2 gap-5"
-      //@ts-ignore
+      //@ts-ignore — yup + typed Form generic mismatch on optional booleans.
       validationSchema={addressSchema}
       useFormProps={{
         shouldUnregister: true,
@@ -63,114 +62,65 @@ export const AddressForm: React.FC<any> = ({
       }}
       resetValues={defaultValues}
     >
-      {({ register, control, getValues, setValue, formState: { errors } }) => {
-        return (
-          <>
-            <div>
-              <Label>{t('text-type')}</Label>
-              <div className="flex items-center space-x-4 rtl:space-x-reverse">
-                <Radio
-                  id="billing"
-                  {...register('type')}
-                  type="radio"
-                  value={AddressType.Billing}
-                  label={t('text-billing')}
-                />
-                <Radio
-                  id="shipping"
-                  {...register('type')}
-                  type="radio"
-                  value={AddressType.Shipping}
-                  label={t('text-shipping')}
-                />
-              </div>
+      {({ register, formState: { errors } }) => (
+        <>
+          <div className="col-span-2">
+            <Label>{t('text-type')}</Label>
+            <div className="flex items-center space-x-4 rtl:space-x-reverse">
+              <Radio
+                id="shipping"
+                {...register('type')}
+                type="radio"
+                value={AddressType.Shipping}
+                label={t('text-shipping')}
+              />
+              <Radio
+                id="billing"
+                {...register('type')}
+                type="radio"
+                value={AddressType.Billing}
+                label={t('text-billing')}
+              />
             </div>
+          </div>
 
-            <Input
-              label={t('text-title')}
-              {...register('title')}
-              error={t(errors.title?.message!)}
-              variant="outline"
-              className="col-span-2"
+          <Input
+            label={t('text-title')}
+            {...register('title')}
+            error={t(errors.title?.message!)}
+            variant="outline"
+            className="col-span-2"
+            placeholder={t('text-address-title-placeholder')}
+          />
+
+          <TextArea
+            label={t('text-address')}
+            {...register('address')}
+            error={t(errors.address?.message!)}
+            variant="outline"
+            className="col-span-2"
+            placeholder={t('text-address-placeholder')}
+          />
+
+          <label className="col-span-2 flex cursor-pointer items-center gap-2 text-sm text-heading">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-gray-300 accent-accent"
+              {...register('is_default')}
             />
-            {
-              //@ts-ignore
-              settings?.useGoogleMap && (
-                <div className="col-span-2">
-                  <Label>{t('text-location')}</Label>
-                  <Controller
-                    control={control}
-                    name="location"
-                    render={({ field: { onChange } }) => (
-                      <GooglePlacesAutocomplete
-                        register={register}
-                        // @ts-ignore
-                        onChange={(location: any) => {
-                          onChange(location);
-                          setValue('address.country', location?.country);
-                          setValue('address.city', location?.city);
-                          setValue('address.state', location?.state);
-                          setValue('address.zip', location?.zip);
-                          setValue(
-                            'address.street_address',
-                            location?.street_address,
-                          );
-                        }}
-                        data={getValues('location')!}
-                      />
-                    )}
-                  />
-                </div>
-              )
-            }
+            {t('text-mark-as-default-address')}
+          </label>
 
-            <Input
-              label={t('text-country')}
-              {...register('address.country')}
-              error={t(errors.address?.country?.message!)}
-              variant="outline"
-            />
-
-            <Input
-              label={t('text-city')}
-              {...register('address.city')}
-              error={t(errors.address?.city?.message!)}
-              variant="outline"
-            />
-
-            <Input
-              label={t('text-state')}
-              {...register('address.state')}
-              error={t(errors.address?.state?.message!)}
-              variant="outline"
-            />
-
-            <Input
-              label={t('text-zip')}
-              {...register('address.zip')}
-              error={t(errors.address?.zip?.message!)}
-              variant="outline"
-            />
-
-            <TextArea
-              label={t('text-street-address')}
-              {...register('address.street_address')}
-              error={t(errors.address?.street_address?.message!)}
-              variant="outline"
-              className="col-span-2"
-            />
-
-            <Button
-              className="w-full col-span-2"
-              loading={isLoading}
-              disabled={isLoading}
-            >
-              {Boolean(defaultValues) ? t('text-update') : t('text-save')}{' '}
-              {t('text-address')}
-            </Button>
-          </>
-        );
-      }}
+          <Button
+            className="col-span-2 w-full"
+            loading={isLoading}
+            disabled={isLoading}
+          >
+            {isEditing ? t('text-update') : t('text-save')}{' '}
+            {t('text-address')}
+          </Button>
+        </>
+      )}
     </Form>
   );
 };
@@ -178,60 +128,57 @@ export const AddressForm: React.FC<any> = ({
 export default function CreateOrUpdateAddressForm() {
   const { t } = useTranslation('common');
   const {
-    data: { customerId, address, type },
-  } = useModalState();
-  const { mutate: updateProfile } = useUpdateUser();
-  const [oldAddress, setAddress] = useAtom(setNewAddress);
-  const onSubmit = (values: FormValues) => {
-    const formattedInput = {
-      id: address?.id,
-      // customer_id: customerId,
-      title: values.title,
-      type: values.type,
-      address: {
-        ...values.address,
-      },
-      location: values.location,
+    data: { address, type },
+  } = useModalState() as {
+    data: {
+      address?: {
+        id: string | number;
+        title: string;
+        address: string;
+        type: string;
+        is_default?: boolean;
+      };
+      type?: string;
     };
-    updateProfile({
-      id: customerId,
-      address: [formattedInput],
-    });
-    // only for nest js address system
-    setAddress([
-      ...oldAddress.filter((i: any) => i?.id !== address?.id),
-      {
-        id: address?.id ? address?.id : new Date(),
-        // customer_id: customerId,
-        title: values.title,
-        type: values.type,
-        address: {
-          ...values.address,
-        },
-        location: values.location,
-      },
-    ] as any);
   };
+  const { closeModal } = useModalAction();
+  const { mutate: createAddress, isLoading: isCreating } = useCreateAddress();
+  const { mutate: updateAddress, isLoading: isUpdating } = useUpdateAddress();
+
+  const isEditing = Boolean(address?.id);
+
+  const defaultValues: AddressFormValues = {
+    title: address?.title ?? '',
+    address: typeof address?.address === 'string' ? address.address : '',
+    type: (address?.type as KolshiAddressType) ??
+      (type === AddressType.Billing
+        ? KolshiAddressType.Billing
+        : KolshiAddressType.Shipping),
+    is_default: Boolean(address?.is_default),
+  };
+
+  function onSubmit(values: AddressFormValues) {
+    if (isEditing && address?.id) {
+      updateAddress(
+        { id: address.id, input: values },
+        { onSuccess: () => closeModal() },
+      );
+    } else {
+      createAddress(values, { onSuccess: () => closeModal() });
+    }
+  }
+
   return (
     <div className="min-h-screen p-5 bg-light sm:p-8 md:min-h-0 md:rounded-xl">
       <h1 className="mb-4 text-lg font-semibold text-center text-heading sm:mb-6">
-        {address ? t('text-update') : t('text-add-new')} {t('text-address')}
+        {isEditing ? t('text-update') : t('text-add-new')}{' '}
+        {t('text-address')}
       </h1>
       <AddressForm
         onSubmit={onSubmit}
-        defaultValues={{
-          title: address?.title ?? '',
-          type: address?.type ?? type,
-          address: {
-            city: address?.address?.city ?? '',
-            country: address?.address?.country ?? '',
-            state: address?.address?.state ?? '',
-            zip: address?.address?.zip ?? '',
-            street_address: address?.address?.street_address ?? '',
-            ...address?.address,
-          },
-          location: address?.location ?? '',
-        }}
+        defaultValues={defaultValues}
+        isLoading={isCreating || isUpdating}
+        isEditing={isEditing}
       />
     </div>
   );

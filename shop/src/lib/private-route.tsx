@@ -2,15 +2,10 @@ import { useRouter } from 'next/router';
 import { BackArrowRound } from '@/components/icons/back-arrow-round';
 import { useUser } from '@/framework/user';
 import LoginView from '@/components/auth/login-form';
-import { useToken } from '@/lib/hooks/use-token';
 import VerifyEmail from '@/pages/verify-email';
 
 import dynamic from 'next/dynamic';
 import { useHasMounted } from '@/lib/use-has-mounted';
-import axios from 'axios';
-import { useSettings } from '@/framework/settings';
-import { Routes } from '@/config/routes';
-import NotFound from '@/components/404/404';
 const Loader = dynamic(
   () => import('@/components/ui/loaders/spinner/spinner'),
   { ssr: false }
@@ -19,27 +14,11 @@ const Loader = dynamic(
 const PrivateRoute: React.FC<{ children?: React.ReactNode }> = ({
   children,
 }) => {
-  const { getEmailVerified, setEmailVerified } = useToken();
   const router = useRouter();
-  const { me, isAuthorized, error } = useUser();
-  const { settings } = useSettings();
+  const { me, isAuthorized, emailVerified } = useUser();
   const hasMounted = useHasMounted();
   const isUser = !!me;
 
-  if (axios.isAxiosError(error)) {
-    if (error?.response?.status === 417) {
-      return (
-        <NotFound
-          title={`${settings?.siteTitle} ${process.env.NEXT_PUBLIC_VERSION}`}
-          subTitle={`This copy of ${settings?.siteTitle} is not genuine.`}
-          linkTitle="Please contact with site admin."
-          link={Routes.contactUs}
-        />
-      );
-    }
-  }
-
-  const { emailVerified } = getEmailVerified();
   if (!isUser && !isAuthorized && hasMounted) {
     return (
       <div className="relative flex min-h-screen w-full justify-center py-5 md:py-8">
