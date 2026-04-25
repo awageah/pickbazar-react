@@ -516,35 +516,44 @@ export interface Address {
   location: GoogleMapLocation;
 }
 
+/** Kolshi CouponDTO. */
 export interface Coupon {
-  id: string;
+  id: string | number;
   code: string;
-  description: string;
-  translated_languages: string[];
-  orders: Order[];
-  type: string;
-  image: string;
-  amount: number;
-  active_from: string;
-  expire_at: string;
-  created_at: string;
-  updated_at: string;
-  target?: boolean;
-  shop_id?: string;
-  is_approve?: boolean;
+  description?: string;
+  discount_type: 'PERCENTAGE' | 'FIXED';
+  discount_value: number;
+  min_order_amount?: number;
+  per_user_limit?: number;
+  max_uses?: number;
+  times_used?: number;
+  expires_at?: string;
+  is_active: boolean;
+  allowed_product_ids?: number[];
+  allowed_category_ids?: number[];
+  first_time_user_only?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  // Legacy compat aliases — kept so old call sites compile until A9
+  /** @deprecated use discount_value */ amount?: number;
+  /** @deprecated use discount_type */ type?: string;
+  /** @deprecated use is_active */ is_approve?: boolean;
 }
 
+/** Kolshi create/update coupon request body. */
 export interface CouponInput {
   code: string;
-  type: CouponType;
-  amount: number;
-  minimum_cart_amount: number;
   description?: string;
-  image?: AttachmentInput;
-  active_from: string;
-  expire_at: string;
-  language?: string;
-  shop_id?: string;
+  discount_type: 'PERCENTAGE' | 'FIXED';
+  discount_value: number;
+  min_order_amount?: number;
+  per_user_limit?: number;
+  max_uses?: number;
+  expires_at?: string;
+  is_active?: boolean;
+  first_time_user_only?: boolean;
+  allowed_product_ids?: number[];
+  allowed_category_ids?: number[];
 }
 
 export interface StoreNotice {
@@ -1061,20 +1070,36 @@ export interface Withdraw {
   updated_at?: string;
 }
 
+/** Kolshi ReviewDTO (camelCase from backend). */
 export interface Review {
   id: number;
-  user_id: number;
-  product_id: number;
+  productId: number;
+  productName?: string;
+  customerId?: number;
+  customerName?: string;
   rating: number;
   comment?: string;
-  photos?: Attachment[];
-  created_at: string;
-  updated_at: string;
-  positive_feedbacks_count?: number;
-  negative_feedbacks_count?: number;
-  product: Product;
-  user: User;
-  abusive_reports: AbusiveReport[];
+  isVerifiedPurchase?: boolean;
+  imageUrls?: string[];
+  response?: ReviewResponse | null;
+  helpfulCount?: number;
+  notHelpfulCount?: number;
+  createdAt: string;
+  // Legacy compat
+  user_id?: number;
+  product_id?: number;
+  created_at?: string;
+  product?: Product;
+  user?: User;
+  abusive_reports?: AbusiveReport[];
+}
+
+export interface ReviewResponse {
+  id: number;
+  reviewId: number;
+  shopId: number;
+  response: string;
+  createdAt: string;
 }
 
 export interface AbusiveReport {

@@ -8,19 +8,15 @@ import WithdrawList from '@/components/withdraw/withdraw-list';
 import { adminOnly } from '@/utils/auth-utils';
 import { useWithdrawsQuery } from '@/data/withdraw';
 import { useState } from 'react';
-import { SortOrder } from '@/types';
 import PageHeading from '@/components/common/page-heading';
 
 export default function WithdrawsPage() {
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
-  const [orderBy, setOrder] = useState('created_at');
-  const [sortedBy, setColumn] = useState<SortOrder>(SortOrder.Desc);
+
   const { withdraws, paginatorInfo, loading, error } = useWithdrawsQuery({
     limit: 10,
     page,
-    sortedBy,
-    orderBy,
   });
 
   if (loading) return <Loader text={t('common:text-loading')} />;
@@ -42,15 +38,12 @@ export default function WithdrawsPage() {
         withdraws={withdraws}
         paginatorInfo={paginatorInfo}
         onPagination={handlePagination}
-        onOrder={setOrder}
-        onSort={setColumn}
       />
     </>
   );
 }
-WithdrawsPage.authenticate = {
-  permissions: adminOnly,
-};
+
+WithdrawsPage.authenticate = { permissions: adminOnly };
 WithdrawsPage.Layout = Layout;
 
 export const getStaticProps = async ({ locale }: any) => ({

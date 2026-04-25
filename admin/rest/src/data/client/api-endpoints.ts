@@ -111,23 +111,30 @@ export const API_ENDPOINTS = {
   // ── Coupons ──────────────────────────────────────────────────────────────
   /** GET (paginated) | POST | PUT /{id} | DELETE /{id} */
   COUPONS: 'coupons',
-  /** GET /coupons/{id}/usages */
-  VERIFY_COUPONS: 'coupons/{id}/usages',
+  /** GET /coupons/{id}/usages — admin usage history */
+  COUPON_USAGES: 'coupons/{id}/usages',
   /** POST /coupons/validate */
   APPROVE_COUPON: 'coupons/validate',
+  /** @deprecated alias kept for compile compat */
+  VERIFY_COUPONS: 'coupons/{id}/usages',
+  /** @deprecated alias kept for compile compat */
   DISAPPROVE_COUPON: 'coupons/validate',
 
   // ── Withdrawals ──────────────────────────────────────────────────────────
   /** GET (paginated, store_owner sees own; admin sees all) | POST */
   WITHDRAWS: 'withdrawals',
-  /** POST /withdrawals/{id}/approve | POST /withdrawals/{id}/reject */
-  APPROVE_WITHDRAW: 'withdrawals/{id}/approve',
+  /** PUT /admin/withdrawals/{id}/approve */
+  APPROVE_WITHDRAW: 'admin/withdrawals/{id}/approve',
+  /** PUT /admin/withdrawals/{id}/reject */
+  REJECT_WITHDRAW: 'admin/withdrawals/{id}/reject',
+  /** GET /admin/withdrawals/pending — paginated admin queue */
+  ADMIN_WITHDRAWALS_PENDING: 'admin/withdrawals/pending',
 
   // ── Reviews ──────────────────────────────────────────────────────────────
-  /** GET (paginated) | DELETE /{id} */
+  /** GET /reviews/product/{productId} | DELETE /reviews/{id} */
   REVIEWS: 'reviews',
-  /** POST /reviews/{id}/response */
-  REVIEW_RESPONSE: 'reviews/{id}/response',
+  /** POST /reviews/{reviewId}/response | GET | DELETE /reviews/responses/{responseId} */
+  REVIEW_RESPONSE: 'reviews/{reviewId}/response',
 
   // ── Settings ─────────────────────────────────────────────────────────────
   /** GET (list of {key,value,category}) | PUT /{key} */

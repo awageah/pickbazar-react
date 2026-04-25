@@ -5,191 +5,186 @@ import { useRouter } from 'next/router';
 import Loader from '@/components/ui/loader/loader';
 import ErrorMessage from '@/components/ui/error-message';
 import Button from '@/components/ui/button';
-import { useForm } from 'react-hook-form';
-import SelectInput from '@/components/ui/select-input';
-import ValidationError from '@/components/ui/form-validation-error';
 import { useTranslation } from 'next-i18next';
-import { useEffect } from 'react';
+import { useState } from 'react';
 import AdminLayout from '@/components/layouts/admin';
-import { useWithdrawQuery } from '@/data/withdraw';
-import { useApproveWithdrawMutation } from '@/data/withdraw';
+import {
+  useWithdrawQuery,
+  useApproveWithdrawMutation,
+  useRejectWithdrawMutation,
+} from '@/data/withdraw';
 import Card from '@/components/common/card';
+import Badge from '@/components/ui/badge/badge';
+import usePrice from '@/utils/use-price';
+import dayjs from 'dayjs';
 
-type FormValues = {
-  status: any;
+const statusColor: Record<string, string> = {
+  PENDING: 'bg-yellow-100 text-yellow-700',
+  APPROVED: 'bg-green-100 text-green-700',
+  REJECTED: 'bg-red-100 text-red-700',
+  PROCESSING: 'bg-blue-100 text-blue-700',
 };
-const WithdrawStatus = [
-  {
-    name: 'Approved',
-    id: 'approved',
-  },
-  {
-    name: 'On Hold',
-    id: 'on_hold',
-  },
-  {
-    name: 'Processing',
-    id: 'processing',
-  },
-  {
-    name: 'Pending',
-    id: 'pending',
-  },
-  {
-    name: 'Rejected',
-    id: 'rejected',
-  },
-];
 
-const Withdraw = () => {
+const WithdrawDetail = () => {
   const router = useRouter();
   const { t } = useTranslation();
+  const { withdrawId } = router.query;
 
-  const {
-    query: { withdrawId },
-  } = router;
+  const { withdraw, error, isLoading: loading } = useWithdrawQuery({
+    id: withdrawId as string,
+  });
+  const { mutate: approveWithdraw, isLoading: approving } = useApproveWithdrawMutation();
+  const { mutate: rejectWithdraw, isLoading: rejecting } = useRejectWithdrawMutation();
 
-  const {
-    withdraw,
-    error,
-    isLoading: loading,
-  } = useWithdrawQuery({ id: withdrawId as string });
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const reasonError = rejectionReason.length > 0 && rejectionReason.length < 10;
 
-  useEffect(() => {
-    if (withdraw?.status) {
-      setValue(
-        'status',
-        WithdrawStatus?.find((status) => status.id === withdraw?.status)
-      );
-    }
-  }, [withdraw?.status]);
-
-  const {
-    handleSubmit,
-    control,
-    setValue,
-    formState: { errors },
-  } = useForm<FormValues>();
-  const { mutate: approveWithdraw, isLoading: approving } =
-    useApproveWithdrawMutation();
-
-  function handleApproveWithdraw({ status }: any) {
-    approveWithdraw({
-      id: withdrawId as string,
-      status: status.id,
-    });
-  }
+  const { price: amount } = usePrice({ amount: withdraw?.amount ?? 0 });
 
   if (loading) return <Loader text={t('common:text-loading')} />;
   if (error) return <ErrorMessage message={error.message} />;
+  if (!withdraw) return null;
+
+  const isPending = (withdraw.status as string)?.toUpperCase() === 'PENDING';
+
+  function handleApprove() {
+    approveWithdraw({ id: withdrawId as string });
+  }
+
+  function handleReject() {
+    if (rejectionReason.length < 10) return;
+    rejectWithdraw(
+      { id: withdrawId as string, rejectionReason },
+      {
+        onSuccess: () => {
+          setShowRejectForm(false);
+          setRejectionReason('');
+        },
+      },
+    );
+  }
 
   return (
     <>
       <h3 className="mb-6 w-full text-xl font-semibold text-heading">
         {t('common:text-withdrawal-info')}
       </h3>
-      <Card className="flex flex-col">
-        <div className="flex flex-col items-start md:flex-row">
-          <form
-            onSubmit={handleSubmit(handleApproveWithdraw)}
-            className="mb-5 flex w-full items-start ms-auto md:order-2 md:mb-0 md:w-1/2 md:ps-3"
-          >
-            <div className="z-20 w-full me-5">
-              <SelectInput
-                name="status"
-                control={control}
-                getOptionLabel={(option: any) => option.name}
-                getOptionValue={(option: any) => option.id}
-                options={WithdrawStatus}
-                placeholder={t('form:input-placeholder-order-status')}
-                rules={{
-                  required: 'form:error-status-required',
-                }}
-              />
 
-              <ValidationError message={t(errors?.status?.message)} />
+      <Card className="mb-6">
+        {/* ── Info grid ── */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+          <div>
+            <p className="text-xs font-medium uppercase text-gray-500">
+              {t('common:text-amount')}
+            </p>
+            <p className="text-lg font-bold text-heading">{amount}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase text-gray-500">
+              {t('common:text-status')}
+            </p>
+            <Badge
+              text={withdraw.status as string}
+              color={statusColor[(withdraw.status as string)?.toUpperCase()] ?? 'bg-gray-100'}
+            />
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase text-gray-500">
+              {t('common:text-payment-method')}
+            </p>
+            <p className="text-sm text-body">{withdraw.payment_method ?? '—'}</p>
+          </div>
+          {withdraw.created_at && (
+            <div>
+              <p className="text-xs font-medium uppercase text-gray-500">
+                {t('table:table-item-created-at')}
+              </p>
+              <p className="text-sm text-body">
+                {dayjs(withdraw.created_at).format('DD MMM YYYY HH:mm')}
+              </p>
             </div>
-            <Button loading={approving}>
-              <span className="hidden sm:block">
-                {t('form:button-label-change-status')}
-              </span>
-              <span className="block sm:hidden">
-                {t('form:form:button-label-change')}
-              </span>
+          )}
+          {withdraw.details && (
+            <div className="sm:col-span-2">
+              <p className="text-xs font-medium uppercase text-gray-500">
+                {t('common:text-details')}
+              </p>
+              <p className="text-sm text-body">{withdraw.details}</p>
+            </div>
+          )}
+          {withdraw.note && (
+            <div className="sm:col-span-2">
+              <p className="text-xs font-medium uppercase text-gray-500">
+                {t('common:text-note')}
+              </p>
+              <p className="text-sm text-body">{withdraw.note}</p>
+            </div>
+          )}
+        </div>
+
+        {/* ── Admin actions — only for PENDING withdrawals ── */}
+        {isPending && (
+          <div className="mt-6 flex flex-wrap gap-3 border-t border-border-200 pt-4">
+            <Button
+              onClick={handleApprove}
+              loading={approving}
+              className="bg-accent"
+            >
+              {t('form:button-label-approve') ?? 'Approve'}
             </Button>
-          </form>
+            <Button
+              onClick={() => setShowRejectForm((v) => !v)}
+              variant="outline"
+              className="border-red-500 text-red-500"
+            >
+              {t('form:button-label-reject') ?? 'Reject'}
+            </Button>
+          </div>
+        )}
 
-          <div className="w-full md:order-1 md:w-1/2 md:pe-3">
-            <div className="mb-2 flex items-center justify-start">
-              <div className="flex w-4/12 flex-shrink-0 justify-between text-sm text-body me-5">
-                <span>{t('common:text-amount')}</span>
-                <span>:</span>
-              </div>
-              <div className="flex w-full items-center rounded border border-gray-300 px-4 py-3 xl:w-5/12">
-                <span className="font-semibold text-heading">
-                  {withdraw?.amount}
-                </span>
-              </div>
-            </div>
-
-            <div className="mb-2 flex items-center">
-              <div className="flex w-4/12 flex-shrink-0 justify-between text-sm text-body me-5">
-                <span>{t('common:text-payment-method')}</span>
-                <span>:</span>
-              </div>
-              <span className="w-full text-sm font-semibold text-heading">
-                {withdraw?.payment_method ?? 'N/A'}
-              </span>
-            </div>
-
-            <div className="flex items-center">
-              <div className="flex w-4/12 flex-shrink-0 justify-between text-sm text-body me-5">
-                <span>{t('common:text-status')}</span>
-                <span>:</span>
-              </div>
-              <span className="w-full text-sm font-semibold text-heading">
-                {
-                  WithdrawStatus?.find(
-                    (status) => status.id === withdraw?.status
-                  )?.name
-                }
-              </span>
+        {/* ── Reject reason form ── */}
+        {showRejectForm && (
+          <div className="mt-4 rounded border border-red-200 bg-red-50 p-4">
+            <p className="mb-2 text-sm font-semibold text-red-700">
+              Rejection Reason <span className="font-normal">(min. 10 characters)</span>
+            </p>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              rows={3}
+              placeholder="Bank account details do not match…"
+              className="mb-2 w-full rounded border border-border-200 px-3 py-2 text-sm focus:outline-none"
+            />
+            {reasonError && (
+              <p className="mb-2 text-xs text-red-500">
+                Reason must be at least 10 characters.
+              </p>
+            )}
+            <div className="flex gap-3">
+              <Button
+                onClick={handleReject}
+                loading={rejecting}
+                disabled={rejectionReason.length < 10}
+                className="bg-red-500"
+              >
+                Confirm Rejection
+              </Button>
+              <Button variant="outline" onClick={() => setShowRejectForm(false)}>
+                Cancel
+              </Button>
             </div>
           </div>
-        </div>
+        )}
       </Card>
-
-      <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
-        {withdraw?.details && (
-          <Card className="flex flex-col">
-            <div className="mb-2 text-sm font-semibold text-heading">
-              <span>{t('common:text-details')} :</span>
-            </div>
-
-            <span className="text-sm text-body">{withdraw?.details}</span>
-          </Card>
-        )}
-
-        {withdraw?.note && (
-          <Card className="flex flex-col">
-            <div className="mb-2 text-sm font-semibold text-heading">
-              <span>{t('common:text-note')} :</span>
-            </div>
-
-            <span className="text-sm text-body">{withdraw?.note}</span>
-          </Card>
-        )}
-      </div>
     </>
   );
 };
 
-export default Withdraw;
+export default WithdrawDetail;
 
-Withdraw.authenticate = {
-  permissions: adminOnly,
-};
-Withdraw.Layout = AdminLayout;
+WithdrawDetail.authenticate = { permissions: adminOnly };
+WithdrawDetail.Layout = AdminLayout;
 
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => ({
   props: {

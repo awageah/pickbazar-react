@@ -24,16 +24,14 @@ type IProps = {
   withdraws: Withdraw[] | undefined;
   paginatorInfo: MappedPaginatorInfo | null;
   onPagination: (current: number) => void;
-  onSort: (current: any) => void;
-  onOrder: (current: string) => void;
+  onSort?: (current: any) => void;
+  onOrder?: (current: string) => void;
 };
 
 const WithdrawList = ({
   withdraws,
   paginatorInfo,
   onPagination,
-  onSort,
-  onOrder,
 }: IProps) => {
   const { t } = useTranslation();
   const { alignLeft, alignRight } = useIsRTL();

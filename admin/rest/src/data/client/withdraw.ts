@@ -3,29 +3,40 @@ import {
   WithdrawPaginator,
   WithdrawQueryOptions,
   CreateWithdrawInput,
-  QueryOptions,
-  ApproveWithdrawInput,
 } from '@/types';
 import { API_ENDPOINTS } from './api-endpoints';
-import { crudFactory } from './curd-factory';
 import { HttpClient } from './http-client';
 
 export const withdrawClient = {
-  ...crudFactory<Withdraw, QueryOptions, CreateWithdrawInput>(
-    API_ENDPOINTS.WITHDRAWS
-  ),
-  get({ id }: { id: string }) {
-    return HttpClient.get<Withdraw>(`${API_ENDPOINTS.WITHDRAWS}/${id}`);
-  },
-  paginated: ({ shop_id, ...params }: Partial<WithdrawQueryOptions>) => {
-    return HttpClient.get<WithdrawPaginator>(API_ENDPOINTS.WITHDRAWS, {
-      shop_id,
-      searchJoin: 'and',
-      ...params,
-      search: HttpClient.formatSearchParams({ shop_id }),
-    });
-  },
-  approve(data: ApproveWithdrawInput) {
-    return HttpClient.post<Withdraw>(API_ENDPOINTS.APPROVE_WITHDRAW, data);
-  },
+  /** GET /withdrawals — store_owner sees own; admin sees all. */
+  paginated: ({ shop_id, page = 1, limit = 10, ...rest }: Partial<WithdrawQueryOptions>) =>
+    HttpClient.getPaginated<Withdraw>(API_ENDPOINTS.WITHDRAWS, {
+      shopId: shop_id,
+      page,
+      size: limit,
+      ...rest,
+    }),
+
+  /** GET /admin/withdrawals/pending — admin pending queue. */
+  paginatedPending: ({ page = 1, limit = 10 }: { page?: number; limit?: number } = {}) =>
+    HttpClient.getPaginated<Withdraw>(API_ENDPOINTS.ADMIN_WITHDRAWALS_PENDING, {
+      page,
+      size: limit,
+    }),
+
+  /** GET /withdrawals/{id} */
+  get: ({ id }: { id: string }) =>
+    HttpClient.get<Withdraw>(`${API_ENDPOINTS.WITHDRAWS}/${id}`),
+
+  /** POST /withdrawals — store_owner creates withdrawal request. */
+  create: (data: Partial<CreateWithdrawInput>) =>
+    HttpClient.post<Withdraw>(API_ENDPOINTS.WITHDRAWS, data),
+
+  /** PUT /admin/withdrawals/{id}/approve */
+  approve: ({ id }: { id: string | number }) =>
+    HttpClient.put<Withdraw>(`admin/withdrawals/${id}/approve`, null),
+
+  /** PUT /admin/withdrawals/{id}/reject — requires rejectionReason (min 10 chars). */
+  reject: ({ id, rejectionReason }: { id: string | number; rejectionReason: string }) =>
+    HttpClient.put<Withdraw>(`admin/withdrawals/${id}/reject`, { rejectionReason }),
 };

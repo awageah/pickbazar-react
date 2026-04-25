@@ -6,29 +6,21 @@ import Layout from '@/components/layouts/admin';
 import ErrorMessage from '@/components/ui/error-message';
 import LinkButton from '@/components/ui/link-button';
 import Loader from '@/components/ui/loader/loader';
-import { Config } from '@/config';
 import { useCouponsQuery } from '@/data/coupon';
-import { SortOrder } from '@/types';
 import { adminOnly } from '@/utils/auth-utils';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-import { useRouter } from 'next/router';
 import { useState } from 'react';
 
 export default function Coupons() {
   const { t } = useTranslation();
-  const { locale } = useRouter();
-  const [orderBy, setOrder] = useState('created_at');
-  const [sortedBy, setColumn] = useState<SortOrder>(SortOrder.Desc);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
+
   const { coupons, loading, paginatorInfo, error } = useCouponsQuery({
-    language: locale,
     limit: 20,
     page,
     code: searchTerm,
-    orderBy,
-    sortedBy,
   });
 
   if (loading) return <Loader text={t('common:text-loading')} />;
@@ -55,32 +47,22 @@ export default function Coupons() {
             onSearch={handleSearch}
             placeholderText={t('form:input-placeholder-search-code')}
           />
-
-          {locale === Config.defaultLanguage && (
-            <LinkButton
-              href="/coupons/create"
-              className="w-full h-12 md:w-auto md:ms-6"
-            >
-              <span>+ {t('form:button-label-add-coupon')}</span>
-            </LinkButton>
-          )}
+          <LinkButton href="/coupons/create" className="w-full h-12 md:w-auto md:ms-6">
+            <span>+ {t('form:button-label-add-coupon')}</span>
+          </LinkButton>
         </div>
       </Card>
+
       <CouponList
         coupons={coupons}
         paginatorInfo={paginatorInfo}
         onPagination={handlePagination}
-        onOrder={setOrder}
-        onSort={setColumn}
       />
     </>
   );
 }
 
-Coupons.authenticate = {
-  permissions: adminOnly,
-};
-
+Coupons.authenticate = { permissions: adminOnly };
 Coupons.Layout = Layout;
 
 export const getStaticProps = async ({ locale }: any) => ({
