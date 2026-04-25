@@ -1,179 +1,153 @@
 import {
   Product,
-  CreateProduct,
   ProductPaginator,
-  QueryOptions,
-  GetParams,
   ProductQueryOptions,
-  GenerateDescriptionInput,
+  KolshiProductInput,
+  KolshiProductImage,
+  KolshiProductImageInput,
+  KolshiVariation,
+  KolshiVariationInput,
+  ProductImportResult,
 } from '@/types';
 import { API_ENDPOINTS } from './api-endpoints';
-import { crudFactory } from './curd-factory';
 import { HttpClient } from './http-client';
 
 export const productClient = {
-  ...crudFactory<Product, QueryOptions, CreateProduct>(API_ENDPOINTS.PRODUCTS),
-  get({ slug, language }: GetParams) {
-    return HttpClient.get<Product>(`${API_ENDPOINTS.PRODUCTS}/${slug}`, {
-      language,
-      with: 'type;shop;categories;tags;variations.attribute.values;variation_options;variation_options.digital_file;author;manufacturer;digital_file',
-    });
-  },
+  // ── List / detail ────────────────────────────────────────────────────────
+
+  /**
+   * GET /products — Spring-paginated.
+   * Kolshi query params: shopId, categoryId, search, isActive, inStock,
+   * sortBy, minPrice, maxPrice, language, page(0-indexed), size.
+   */
   paginated: ({
-    type,
     name,
-    categories,
-    shop_id,
-    product_type,
-    status,
-    ...params
-  }: Partial<ProductQueryOptions>) => {
-    return HttpClient.get<ProductPaginator>(API_ENDPOINTS.PRODUCTS, {
-      searchJoin: 'and',
-      with: 'shop;type;categories',
-      shop_id,
-      ...params,
-      search: HttpClient.formatSearchParams({
-        type,
-        name,
-        categories,
-        shop_id,
-        product_type,
-        status,
-      }),
-    });
-  },
-  popular({ shop_id, ...params }: Partial<ProductQueryOptions>) {
-    return HttpClient.get<Product[]>(API_ENDPOINTS.POPULAR_PRODUCTS, {
-      searchJoin: 'and',
-      with: 'type;shop',
-      ...params,
-      search: HttpClient.formatSearchParams({ shop_id }),
-    });
-  },
-  lowStock({ shop_id, ...params }: Partial<ProductQueryOptions>) {
-    return HttpClient.get<Product[]>(
-      API_ENDPOINTS.LOW_STOCK_PRODUCTS_ANALYTICS,
-      {
-        searchJoin: 'and',
-        with: 'type;shop',
-        ...params,
-        search: HttpClient.formatSearchParams({ shop_id }),
-      },
-    );
-  },
-  generateDescription: (data: GenerateDescriptionInput) => {
-    return HttpClient.post<any>(API_ENDPOINTS.GENERATE_DESCRIPTION, data);
-  },
-  newOrInActiveProducts: ({
-    user_id,
-    shop_id,
-    status,
-    name,
-    ...params
-  }: Partial<ProductQueryOptions>) => {
-    return HttpClient.get<ProductPaginator>(
-      API_ENDPOINTS.NEW_OR_INACTIVE_PRODUCTS,
-      {
-        searchJoin: 'and',
-        user_id,
-        shop_id,
-        status,
-        name,
-        ...params,
-        search: HttpClient.formatSearchParams({
-          status,
-          name,
-        }),
-      },
-    );
-  },
-  lowOrOutOfStockProducts: ({
-    user_id,
     shop_id,
     status,
     categories,
-    name,
-    type,
-    ...params
-  }: Partial<ProductQueryOptions>) => {
-    return HttpClient.get<ProductPaginator>(
-      API_ENDPOINTS.LOW_OR_OUT_OF_STOCK_PRODUCTS,
-      {
-        searchJoin: 'and',
-        user_id,
-        shop_id,
-        status,
-        name,
-        ...params,
-        search: HttpClient.formatSearchParams({
-          status,
-          name,
-          categories,
-          type,
-        }),
-      },
+    page = 1,
+    limit = 10,
+    ...rest
+  }: Partial<ProductQueryOptions>) =>
+    HttpClient.getPaginated<Product>(API_ENDPOINTS.PRODUCTS, {
+      search: name,
+      shopId: shop_id,
+      isActive: status === 'publish' ? true : status === 'draft' ? false : undefined,
+      categoryId: categories,
+      ...rest,
+      page,
+      size: limit,
+    }),
+
+  /** GET /products/slug/{slug} */
+  get: ({ slug }: { slug: string; language?: string }) =>
+    HttpClient.get<Product>(`${API_ENDPOINTS.PRODUCTS}/slug/${slug}`),
+
+  /** GET /products/{id} */
+  getById: (id: string | number) =>
+    HttpClient.get<Product>(`${API_ENDPOINTS.PRODUCTS}/${id}`),
+
+  // ── CRUD ────────────────────────────────────────────────────────────────
+
+  /** POST /products */
+  create: (data: KolshiProductInput) =>
+    HttpClient.post<Product>(API_ENDPOINTS.PRODUCTS, data),
+
+  /** PUT /products/{id} */
+  update: ({ id, ...data }: KolshiProductInput & { id: string | number }) =>
+    HttpClient.put<Product>(`${API_ENDPOINTS.PRODUCTS}/${id}`, data),
+
+  /** DELETE /products/{id} */
+  delete: ({ id }: { id: string | number }) =>
+    HttpClient.delete<void>(`${API_ENDPOINTS.PRODUCTS}/${id}`),
+
+  // ── Publish / unpublish (super_admin) ────────────────────────────────────
+
+  /** POST /products/{id}/publish */
+  publish: (id: string | number) =>
+    HttpClient.post<void>(`${API_ENDPOINTS.PRODUCTS}/${id}/publish`, {}),
+
+  /** POST /products/{id}/unpublish */
+  unpublish: (id: string | number) =>
+    HttpClient.post<void>(`${API_ENDPOINTS.PRODUCTS}/${id}/unpublish`, {}),
+
+  // ── Product images ────────────────────────────────────────────────────────
+
+  /** GET /products/{productId}/images */
+  getImages: (productId: string | number) =>
+    HttpClient.get<KolshiProductImage[]>(
+      `${API_ENDPOINTS.PRODUCTS}/${productId}/images`,
+    ),
+
+  /** POST /products/{productId}/images */
+  addImage: (productId: string | number, data: KolshiProductImageInput) =>
+    HttpClient.post<KolshiProductImage>(
+      `${API_ENDPOINTS.PRODUCTS}/${productId}/images`,
+      data,
+    ),
+
+  /** POST /products/images/{imageId}/set-primary */
+  setPrimaryImage: (imageId: number) =>
+    HttpClient.post<void>(
+      `${API_ENDPOINTS.PRODUCTS}/images/${imageId}/set-primary`,
+      {},
+    ),
+
+  /** DELETE /products/images/{imageId} */
+  deleteImage: (imageId: number) =>
+    HttpClient.delete<void>(`${API_ENDPOINTS.PRODUCTS}/images/${imageId}`),
+
+  // ── Product variations ────────────────────────────────────────────────────
+
+  /** GET /products/{productId}/variations */
+  getVariations: (productId: string | number) =>
+    HttpClient.get<KolshiVariation[]>(
+      `${API_ENDPOINTS.PRODUCTS}/${productId}/variations`,
+    ),
+
+  /** POST /products/{productId}/variations */
+  addVariation: (
+    productId: string | number,
+    data: KolshiVariationInput,
+  ) =>
+    HttpClient.post<KolshiVariation>(
+      `${API_ENDPOINTS.PRODUCTS}/${productId}/variations`,
+      data,
+    ),
+
+  /** PUT /products/variations/{variationId} */
+  updateVariation: (variationId: number, data: KolshiVariationInput) =>
+    HttpClient.put<KolshiVariation>(
+      `${API_ENDPOINTS.PRODUCTS}/variations/${variationId}`,
+      data,
+    ),
+
+  /** POST /products/variations/{variationId}/toggle */
+  toggleVariation: (variationId: number) =>
+    HttpClient.post<void>(
+      `${API_ENDPOINTS.PRODUCTS}/variations/${variationId}/toggle`,
+      {},
+    ),
+
+  /** DELETE /products/variations/{variationId} */
+  deleteVariation: (variationId: number) =>
+    HttpClient.delete<void>(
+      `${API_ENDPOINTS.PRODUCTS}/variations/${variationId}`,
+    ),
+
+  // ── Bulk CSV ──────────────────────────────────────────────────────────────
+
+  /**
+   * POST /products/import — multipart/form-data, field: `file`.
+   * Backend cap: 1 000 rows. Exceeding returns 422 with per-row errors.
+   */
+  importProducts: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return HttpClient.post<ProductImportResult>(
+      API_ENDPOINTS.IMPORT_PRODUCTS,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
     );
-  },
-  productByCategory({
-    limit,
-    language,
-  }: {
-    limit?: number;
-    language?: string;
-  }) {
-    return HttpClient.get<any>(API_ENDPOINTS.CATEGORY_WISE_PRODUCTS, {
-      limit,
-      language,
-    });
-  },
-  // productByCategory({ shop_id, ...params }: Partial<ProductQueryOptions>) {
-  //   return HttpClient.get<Product[]>(API_ENDPOINTS.CATEGORY_WISE_PRODUCTS, {
-  //     searchJoin: 'and',
-  //     ...params,
-  //     search: HttpClient.formatSearchParams({ shop_id }),
-  //   });
-  // },
-  mostSoldProductByCategory({
-    shop_id,
-    ...params
-  }: Partial<ProductQueryOptions>) {
-    return HttpClient.get<Product[]>(
-      API_ENDPOINTS.CATEGORY_WISE_PRODUCTS_SALE,
-      {
-        searchJoin: 'and',
-        ...params,
-        search: HttpClient.formatSearchParams({ shop_id }),
-      },
-    );
-  },
-  getProductsByFlashSale: ({
-    user_id,
-    shop_id,
-    slug,
-    name,
-    ...params
-  }: any) => {
-    return HttpClient.get<ProductPaginator>(
-      API_ENDPOINTS.PRODUCTS_BY_FLASH_SALE,
-      {
-        searchJoin: 'and',
-        user_id,
-        shop_id,
-        slug,
-        name,
-        ...params,
-        search: HttpClient.formatSearchParams({
-          name,
-        }),
-      },
-    );
-  },
-  topRated({ shop_id, ...params }: Partial<ProductQueryOptions>) {
-    return HttpClient.get<Product[]>(API_ENDPOINTS.TOP_RATED_PRODUCTS, {
-      searchJoin: 'and',
-      ...params,
-      search: HttpClient.formatSearchParams({ shop_id }),
-    });
   },
 };

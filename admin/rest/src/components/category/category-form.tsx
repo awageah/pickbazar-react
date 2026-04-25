@@ -1,25 +1,15 @@
 import Input from '@/components/ui/input';
-import {
-  Control,
-  FieldErrors,
-  useForm,
-  useFormState,
-  useWatch,
-} from 'react-hook-form';
+import { Control, useForm } from 'react-hook-form';
 import Button from '@/components/ui/button';
 import TextArea from '@/components/ui/text-area';
 import Label from '@/components/ui/label';
 import Card from '@/components/common/card';
 import Description from '@/components/ui/description';
-import * as categoriesIcon from '@/components/icons/category';
 import { EditIcon } from '@/components/icons/edit';
-import { getIcon } from '@/utils/get-icon';
 import { useRouter } from 'next/router';
-import { Config } from '@/config';
 import ValidationError from '@/components/ui/form-validation-error';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Category, ItemProps } from '@/types';
-import { categoryIcons } from './category-icons';
+import { useState } from 'react';
+import { Category } from '@/types';
 import { useTranslation } from 'next-i18next';
 import FileInput from '@/components/ui/file-input';
 import SelectInput from '@/components/ui/select-input';
@@ -30,84 +20,26 @@ import {
   useCreateCategoryMutation,
   useUpdateCategoryMutation,
 } from '@/data/category';
-import { useTypesQuery } from '@/data/type';
-import { useSettingsQuery } from '@/data/settings';
-import { useModalAction } from '@/components/ui/modal/modal.context';
-import OpenAIButton from '@/components/openAI/openAI.button';
-import { join, split } from 'lodash';
 import { formatSlug } from '@/utils/use-slug';
 import StickyFooterPanel from '@/components/ui/sticky-footer-panel';
-import { CategoryDetailSuggestion } from '@/components/category/category-ai-prompt';
 
-export const updatedIcons = categoryIcons.map((item: any) => {
-  item.label = (
-    <div className="flex items-center space-s-5">
-      <span className="flex items-center justify-center w-5 h-5">
-        {getIcon({
-          iconList: categoriesIcon,
-          iconName: item.value,
-          className: 'max-h-full max-w-full',
-        })}
-      </span>
-      <span>{item.label}</span>
-    </div>
-  );
-  return item;
-});
-
-function SelectTypes({
-  control,
-  errors,
-}: {
-  control: Control<FormValues>;
-  errors: FieldErrors;
-}) {
-  const { locale } = useRouter();
-  const { t } = useTranslation();
-  const { types, loading } = useTypesQuery({ language: locale });
-  return (
-    <div className="mb-5">
-      <Label>{t('form:input-label-types')}</Label>
-      <SelectInput
-        name="type"
-        control={control}
-        getOptionLabel={(option: any) => option.name}
-        getOptionValue={(option: any) => option.slug}
-        options={types!}
-        isLoading={loading}
-      />
-      <ValidationError message={t(errors.type?.message)} />
-    </div>
-  );
+/** Extracts a URL string from a Cloudinary Attachment or a plain string. */
+function extractImageUrl(value: any): string | undefined {
+  if (!value) return undefined;
+  if (typeof value === 'string') return value;
+  return value.original ?? value.secure_url ?? value.thumbnail;
 }
 
-function SelectCategories({
+function SelectParentCategory({
   control,
-  setValue,
   initialValue,
 }: {
   control: Control<FormValues>;
-  setValue: any;
   initialValue?: Category;
 }) {
-  const { locale } = useRouter();
   const { t } = useTranslation();
-  const type = useWatch({
-    control,
-    name: 'type',
-  });
-  const { dirtyFields } = useFormState({
-    control,
-  });
-  useEffect(() => {
-    if (type?.slug && dirtyFields?.type) {
-      setValue('parent', []);
-    }
-  }, [type?.slug]);
   const { categories, loading } = useCategoriesQuery({
     limit: 999,
-    type: type?.slug,
-    language: locale,
     ...(Boolean(initialValue?.id) && { self: initialValue?.id }),
   });
   return (
@@ -129,150 +61,94 @@ function SelectCategories({
 type FormValues = {
   name: string;
   slug: string;
-  details: string;
+  description: string;
   parent: any;
   image: any;
-  icon: any;
-  type: any;
 };
 
-const defaultValues = {
-  image: [],
+const defaultValues: FormValues = {
+  image: undefined,
   name: '',
   slug: '',
-  details: '',
-  parent: '',
-  icon: '',
-  type: '',
+  description: '',
+  parent: null,
 };
 
 type IProps = {
   initialValues?: Category | undefined;
 };
-export default function CreateOrUpdateCategoriesForm({
-  initialValues,
-}: IProps) {
+
+export default function CreateOrUpdateCategoriesForm({ initialValues }: IProps) {
   const router = useRouter();
   const { t } = useTranslation();
-
   const [isSlugDisable, setIsSlugDisable] = useState<boolean>(true);
 
-  const isNewTranslation = router?.query?.action === 'translate';
-  const isSlugEditable =
-    router?.query?.action === 'edit' &&
-    router?.locale === Config.defaultLanguage;
+  const isSlugEditable = router?.query?.action === 'edit';
+
   const {
     register,
     handleSubmit,
     control,
-    setValue,
     watch,
-
     formState: { errors },
   } = useForm<FormValues>({
-    // shouldUnregister: true,
-    //@ts-ignore
     defaultValues: initialValues
       ? {
-          ...initialValues,
-          icon: initialValues?.icon
-            ? categoryIcons.find(
-                (singleIcon) => singleIcon.value === initialValues?.icon!,
-              )
-            : '',
-          ...(isNewTranslation && {
-            type: null,
-          }),
+          name: initialValues.name ?? '',
+          slug: initialValues.slug ?? '',
+          description: (initialValues as any).description ?? (initialValues as any).details ?? '',
+          image: (initialValues as any).image ?? undefined,
+          parent: initialValues.parent ? { id: initialValues.parent } : null,
         }
       : defaultValues,
-    //@ts-ignore
-    resolver: yupResolver(categoryValidationSchema),
+    resolver: yupResolver(categoryValidationSchema) as any,
   });
 
-  const { openModal } = useModalAction();
   const slugAutoSuggest = formatSlug(watch('name'));
-  const { locale } = router;
-  const {
-    // @ts-ignore
-    settings: { options },
-  } = useSettingsQuery({
-    language: locale!,
-  });
 
-  const generateName = watch('name');
-  const categoryDetailSuggestionLists = useMemo(() => {
-    return CategoryDetailSuggestion({ name: generateName ?? '' });
-  }, [generateName]);
+  const { mutate: createCategory, isLoading: creating } = useCreateCategoryMutation();
+  const { mutate: updateCategory, isLoading: updating } = useUpdateCategoryMutation();
 
-  const handleGenerateDescription = useCallback(() => {
-    openModal('GENERATE_DESCRIPTION', {
-      control,
-      name: generateName,
-      set_value: setValue,
-      key: 'details',
-      suggestion: categoryDetailSuggestionLists as ItemProps[],
-    });
-  }, [generateName]);
-
-  const { mutate: createCategory, isLoading: creating } =
-    useCreateCategoryMutation();
-  const { mutate: updateCategory, isLoading: updating } =
-    useUpdateCategoryMutation();
-
-  const onSubmit = async (values: FormValues) => {
-    const input = {
-      language: router.locale,
+  const onSubmit = (values: FormValues) => {
+    const payload = {
       name: values.name,
-      slug: values.slug,
-      details: values.details,
-      image: {
-        thumbnail: values?.image?.thumbnail,
-        original: values?.image?.original,
-        id: values?.image?.id,
-      },
-      icon: values.icon?.value || '',
-      parent: values.parent?.id ?? null,
-      type_id: values.type?.id,
+      slug: values.slug || slugAutoSuggest,
+      description: values.description,
+      image: extractImageUrl(values.image),
+      parent_id: values.parent?.id ?? null,
     };
-    if (
-      !initialValues ||
-      !initialValues.translated_languages.includes(router.locale!)
-    ) {
-      createCategory({
-        ...input,
-        ...(initialValues?.slug && { slug: initialValues.slug }),
-      });
+
+    if (!initialValues) {
+      createCategory(payload);
     } else {
-      updateCategory({
-        ...input,
-        id: initialValues.id!,
-      });
+      updateCategory({ id: initialValues.id!, ...payload });
     }
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
+      {/* ── Image ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap pb-8 my-5 border-b border-dashed border-border-base sm:my-8">
         <Description
           title={t('form:input-label-image')}
           details={t('form:category-image-helper-text')}
           className="w-full px-0 pb-5 sm:w-4/12 sm:py-8 sm:pe-4 md:w-1/3 md:pe-5"
         />
-
         <Card className="w-full sm:w-8/12 md:w-2/3">
           <FileInput name="image" control={control} multiple={false} />
         </Card>
       </div>
 
+      {/* ── Details ───────────────────────────────────────────────────── */}
       <div className="flex flex-wrap my-5 sm:my-8">
         <Description
           title={t('form:input-label-description')}
-          details={`${
+          details={
             initialValues
               ? t('form:item-description-edit')
               : t('form:item-description-add')
-          } ${t('form:category-description-helper-text')}`}
-          className="w-full px-0 pb-5 sm:w-4/12 sm:py-8 sm:pe-4 md:w-1/3 md:pe-5 "
+          }
+          className="w-full px-0 pb-5 sm:w-4/12 sm:py-8 sm:pe-4 md:w-1/3 md:pe-5"
         />
 
         <Card className="w-full sm:w-8/12 md:w-2/3">
@@ -313,38 +189,17 @@ export default function CreateOrUpdateCategoriesForm({
             />
           )}
 
-          <div className="relative">
-            {options?.useAi && (
-              <OpenAIButton
-                title={t('form:button-label-description-ai')}
-                onClick={handleGenerateDescription}
-              />
-            )}
-            <TextArea
-              label={t('form:input-label-details')}
-              {...register('details')}
-              variant="outline"
-              className="mb-5"
-            />
-          </div>
-
-          <div className="mb-5">
-            <Label>{t('form:input-label-select-icon')}</Label>
-            <SelectInput
-              name="icon"
-              control={control}
-              options={updatedIcons}
-              isClearable={true}
-            />
-          </div>
-          <SelectTypes control={control} errors={errors} />
-          <SelectCategories
-            control={control}
-            setValue={setValue}
-            initialValue={initialValues}
+          <TextArea
+            label={t('form:input-label-details')}
+            {...register('description')}
+            variant="outline"
+            className="mb-5"
           />
+
+          <SelectParentCategory control={control} initialValue={initialValues} />
         </Card>
       </div>
+
       <StickyFooterPanel className="z-0">
         <div className="text-end">
           {initialValues && (
@@ -357,7 +212,6 @@ export default function CreateOrUpdateCategoriesForm({
               {t('form:button-label-back')}
             </Button>
           )}
-
           <Button
             loading={creating || updating}
             disabled={creating || updating}

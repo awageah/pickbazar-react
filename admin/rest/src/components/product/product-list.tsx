@@ -10,7 +10,6 @@ import { NoDataFound } from '@/components/icons/no-data-found';
 import {
   Product,
   MappedPaginatorInfo,
-  ProductType,
   Shop,
   SortOrder,
 } from '@/types';
@@ -94,25 +93,26 @@ const ProductList = ({
       width: 280,
       ellipsis: true,
       onHeaderCell: () => onHeaderClick('name'),
-      render: (name: string, { image, type }: { image: any; type: any }) => (
-        <div className="flex items-center">
-          <div className="relative aspect-square h-10 w-10 shrink-0 overflow-hidden rounded border border-border-200/80 bg-gray-100 me-2.5">
-            <Image
-              src={image?.thumbnail ?? siteSettings.product.placeholder}
-              alt={name}
-              fill
-              priority={true}
-              sizes="(max-width: 768px) 100vw"
-            />
-          </div>
-          <div className="flex flex-col">
+      render: (name: string, { image }: { image: any }) => {
+        const imgSrc =
+          typeof image === 'string'
+            ? image
+            : image?.thumbnail ?? siteSettings.product.placeholder;
+        return (
+          <div className="flex items-center">
+            <div className="relative aspect-square h-10 w-10 shrink-0 overflow-hidden rounded border border-border-200/80 bg-gray-100 me-2.5">
+              <Image
+                src={imgSrc || siteSettings.product.placeholder}
+                alt={name}
+                fill
+                priority={true}
+                sizes="(max-width: 768px) 100vw"
+              />
+            </div>
             <span className="truncate font-medium">{name}</span>
-            <span className="truncate whitespace-nowrap pt-1 pb-0.5 text-[13px] text-body/80">
-              {type?.name}
-            </span>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       title: t('table:table-item-product-type'),
@@ -133,20 +133,26 @@ const ProductList = ({
       width: 170,
       align: alignLeft,
       ellipsis: true,
-      render: (shop: Shop) => (
-        <div className="flex items-center font-medium">
-          <div className="relative aspect-square h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border-200/80 bg-gray-100 me-2">
-            <Image
-              src={shop?.logo?.thumbnail ?? siteSettings.product.placeholder}
-              alt={shop?.name ?? 'Shop Name'}
-              fill
-              priority={true}
-              sizes="(max-width: 768px) 100vw"
-            />
+      render: (shop: Shop) => {
+        const logoSrc =
+          typeof (shop as any)?.logo === 'string'
+            ? (shop as any).logo
+            : (shop as any)?.logo?.thumbnail ?? siteSettings.product.placeholder;
+        return (
+          <div className="flex items-center font-medium">
+            <div className="relative aspect-square h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border-200/80 bg-gray-100 me-2">
+              <Image
+                src={logoSrc || siteSettings.product.placeholder}
+                alt={shop?.name ?? 'Shop Name'}
+                fill
+                priority={true}
+                sizes="(max-width: 768px) 100vw"
+              />
+            </div>
+            <span className="truncate">{shop?.name}</span>
           </div>
-          <span className="truncate">{shop?.name}</span>
-        </div>
-      ),
+        );
+      },
     },
 
     {
@@ -165,26 +171,11 @@ const ProductList = ({
       align: alignRight,
       width: 180,
       onHeaderCell: () => onHeaderClick('price'),
-      render: function Render(value: number, record: Product) {
-        const { price: max_price } = usePrice({
-          amount: record?.max_price as number,
-        });
-        const { price: min_price } = usePrice({
-          amount: record?.min_price as number,
-        });
-
-        const { price } = usePrice({
-          amount: value,
-        });
-
-        const renderPrice =
-          record?.product_type === ProductType.Variable
-            ? `${min_price} - ${max_price}`
-            : price;
-
+      render: function Render(value: number) {
+        const { price } = usePrice({ amount: value });
         return (
-          <span className="whitespace-nowrap" title={renderPrice}>
-            {renderPrice}
+          <span className="whitespace-nowrap" title={price}>
+            {price}
           </span>
         );
       },

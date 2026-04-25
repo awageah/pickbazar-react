@@ -80,11 +80,15 @@ const CategoryList = ({
       width: 180,
       onHeaderCell: () => onHeaderClick('name'),
       render: (name: string, { image }: { image: any }) => {
+        const imgSrc =
+          typeof image === 'string'
+            ? image
+            : image?.thumbnail ?? siteSettings.product.placeholder;
         return (
           <div className="flex items-center">
             <div className="relative aspect-square h-10 w-10 shrink-0 overflow-hidden rounded border border-border-200/80 bg-gray-100 me-2.5">
               <Image
-                src={image?.thumbnail ?? siteSettings.product.placeholder}
+                src={imgSrc || siteSettings.product.placeholder}
                 alt={name}
                 fill
                 priority={true}
@@ -141,19 +145,13 @@ const CategoryList = ({
       onHeaderCell: () => onHeaderClick('slug'),
     },
     {
-      title: t('table:table-item-group'),
-      dataIndex: 'type',
-      key: 'type',
-      align: 'center',
-      width: 120,
-      render: (type: any) => (
-        <div
-          className="overflow-hidden truncate whitespace-nowrap"
-          title={type?.name}
-        >
-          {type?.name}
-        </div>
-      ),
+      title: t('table:table-item-details'),
+      dataIndex: 'description',
+      key: 'description',
+      ellipsis: true,
+      align: alignLeft,
+      width: 200,
+      render: (desc: string, record: any) => desc ?? record?.details ?? '—',
     },
     {
       title: t('table:table-item-actions'),

@@ -2329,3 +2329,69 @@ export interface OrderStickerCardProps extends StickerCardProps {
     | 'admin_commission_rate'
     | 'withdrawn_amount';
 }
+
+// ── Kolshi-specific catalog types ─────────────────────────────────────────────
+
+/** A single image attached to a product. Returned by GET /products/{id}/images. */
+export interface KolshiProductImage {
+  id: number;
+  url: string;
+  position: number;
+  is_primary: boolean;
+}
+
+/** A product variation (key/value pair). Returned by GET /products/{id}/variations. */
+export interface KolshiVariation {
+  id: number;
+  key: string;
+  value: string;
+  price_diff?: number;
+  active: boolean;
+}
+
+/** Request body for POST /products/{id}/variations and PUT /products/variations/{id}. */
+export interface KolshiVariationInput {
+  key: string;
+  value: string;
+  price_diff?: number;
+}
+
+/** Request body for POST /products/{id}/images. */
+export interface KolshiProductImageInput {
+  url: string;
+  position?: number;
+  is_primary?: boolean;
+}
+
+/** Kolshi create/update product request. */
+export interface KolshiProductInput {
+  shop_id?: number | string;
+  name?: string;
+  description?: string;
+  product_type?: string;
+  unit?: string;
+  brand?: string;
+  price?: number;
+  sale_price?: number;
+  quantity?: number;
+  sku?: string;
+  status?: string;
+  image?: string;
+  gallery?: string[];
+  is_taxable?: boolean;
+  category_ids?: (number | string)[];
+}
+
+/** CSV import response row error. */
+export interface ImportRowError {
+  row: number;
+  field: string;
+  message: string;
+}
+
+/** Response from POST /products/import. */
+export interface ProductImportResult {
+  imported: number;
+  failed: number;
+  errors: ImportRowError[];
+}

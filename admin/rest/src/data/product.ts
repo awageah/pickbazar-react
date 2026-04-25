@@ -6,100 +6,100 @@ import { API_ENDPOINTS } from '@/data/client/api-endpoints';
 import { productClient } from './client/product';
 import {
   ProductQueryOptions,
-  GetParams,
   ProductPaginator,
   Product,
+  KolshiProductInput,
+  KolshiProductImage,
+  KolshiProductImageInput,
+  KolshiVariation,
+  KolshiVariationInput,
+  ProductImportResult,
 } from '@/types';
 import { mapPaginatorData } from '@/utils/data-mappers';
 import { Routes } from '@/config/routes';
-import { Config } from '@/config';
+import { normalizeApiError } from '@/utils/error-handler';
+
+// ── Product CRUD ─────────────────────────────────────────────────────────────
 
 export const useCreateProductMutation = () => {
   const queryClient = useQueryClient();
   const router = useRouter();
   const { t } = useTranslation();
-  return useMutation(productClient.create, {
-    onSuccess: async () => {
-      const generateRedirectUrl = router.query.shop
-        ? `/${router.query.shop}${Routes.product.list}`
-        : Routes.product.list;
-      await Router.push(generateRedirectUrl, undefined, {
-        locale: Config.defaultLanguage,
-      });
-      toast.success(t('common:successfully-created'));
+
+  return useMutation(
+    (data: KolshiProductInput) => productClient.create(data),
+    {
+      onSuccess: async () => {
+        const shopSlug = router.query.shop as string | undefined;
+        const redirectUrl = shopSlug
+          ? `/${shopSlug}${Routes.product.list}`
+          : Routes.product.list;
+        await Router.push(redirectUrl);
+        toast.success(t('common:successfully-created'));
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries(API_ENDPOINTS.PRODUCTS);
+      },
     },
-    // Always refetch after error or success:
-    onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.PRODUCTS);
-    },
-    onError: (error: any) => {
-      const { data, status } = error?.response;
-      if (status === 422) {
-        const errorMessage: any = Object.values(data).flat();
-        toast.error(errorMessage[0]);
-      } else {
-        toast.error(t(`common:${error?.response?.data.message}`));
-      }
-    },
-  });
+  );
 };
 
 export const useUpdateProductMutation = () => {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const router = useRouter();
-  return useMutation(productClient.update, {
-    onSuccess: async (data) => {
-      const generateRedirectUrl = router.query.shop
-        ? `/${router.query.shop}${Routes.product.list}`
-        : Routes.product.list;
-      await router.push(
-        `${generateRedirectUrl}/${data?.slug}/edit`,
-        undefined,
-        {
-          locale: Config.defaultLanguage,
-        },
-      );
-      toast.success(t('common:successfully-updated'));
+
+  return useMutation(
+    (data: KolshiProductInput & { id: string | number }) =>
+      productClient.update(data),
+    {
+      onSuccess: async (updated: Product) => {
+        const shopSlug = router.query.shop as string | undefined;
+        const listUrl = shopSlug
+          ? `/${shopSlug}${Routes.product.list}`
+          : Routes.product.list;
+        await router.push(`${listUrl}/${updated?.slug}/edit`);
+        toast.success(t('common:successfully-updated'));
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries(API_ENDPOINTS.PRODUCTS);
+      },
     },
-    // Always refetch after error or success:
-    onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.PRODUCTS);
-    },
-    onError: (error: any) => {
-      toast.error(t(`common:${error?.response?.data.message}`));
-    },
-  });
+  );
 };
 
 export const useDeleteProductMutation = () => {
   const queryClient = useQueryClient();
   const { t } = useTranslation();
+
   return useMutation(productClient.delete, {
     onSuccess: () => {
       toast.success(t('common:successfully-deleted'));
     },
-    // Always refetch after error or success:
+    onError: (err: any) => {
+      toast.error(normalizeApiError(err).message);
+    },
     onSettled: () => {
       queryClient.invalidateQueries(API_ENDPOINTS.PRODUCTS);
-    },
-    onError: (error: any) => {
-      toast.error(t(`common:${error?.response?.data.message}`));
     },
   });
 };
 
-export const useProductQuery = ({ slug, language }: GetParams) => {
+// ── Queries ──────────────────────────────────────────────────────────────────
+
+export const useProductQuery = ({ slug }: { slug: string; language?: string }) => {
   const { data, error, isLoading } = useQuery<Product, Error>(
-    [API_ENDPOINTS.PRODUCTS, { slug, language }],
-    () => productClient.get({ slug, language }),
+    [API_ENDPOINTS.PRODUCTS, { slug }],
+    () => productClient.get({ slug }),
   );
 
-  return {
-    product: data,
-    error,
-    isLoading,
-  };
+  return { product: data, error, isLoading };
 };
 
 export const useProductsQuery = (
@@ -109,11 +109,8 @@ export const useProductsQuery = (
   const { data, error, isLoading } = useQuery<ProductPaginator, Error>(
     [API_ENDPOINTS.PRODUCTS, params],
     ({ queryKey, pageParam }) =>
-      productClient.paginated(Object.assign({}, queryKey[1], pageParam)),
-    {
-      keepPreviousData: true,
-      ...options,
-    },
+      productClient.paginated(Object.assign({}, queryKey[1] as any, pageParam)),
+    { keepPreviousData: true, ...options },
   );
 
   return {
@@ -124,81 +121,252 @@ export const useProductsQuery = (
   };
 };
 
-export const useGenerateDescriptionMutation = () => {
+// ── Publish / unpublish ───────────────────────────────────────────────────────
+
+export const usePublishProductMutation = () => {
   const queryClient = useQueryClient();
-  const { t } = useTranslation('common');
-  return useMutation(productClient.generateDescription, {
+  const { t } = useTranslation();
+
+  return useMutation((id: string | number) => productClient.publish(id), {
     onSuccess: () => {
-      toast.success(t('Generated...'));
+      toast.success(t('common:successfully-updated'));
+      queryClient.invalidateQueries(API_ENDPOINTS.PRODUCTS);
     },
-    // Always refetch after error or success:
-    onSettled: (data) => {
-      queryClient.refetchQueries(API_ENDPOINTS.GENERATE_DESCRIPTION);
-      data;
+    onError: (err: any) => {
+      toast.error(normalizeApiError(err).message);
     },
   });
 };
 
-export const useInActiveProductsQuery = (
-  options: Partial<ProductQueryOptions>,
-) => {
-  const { data, error, isLoading } = useQuery<ProductPaginator, Error>(
-    [API_ENDPOINTS.NEW_OR_INACTIVE_PRODUCTS, options],
-    ({ queryKey, pageParam }) =>
-      productClient.newOrInActiveProducts(
-        Object.assign({}, queryKey[1], pageParam),
-      ),
-    {
-      keepPreviousData: true,
-    },
-  );
+export const useUnpublishProductMutation = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
 
-  return {
-    products: data?.data ?? [],
-    paginatorInfo: mapPaginatorData(data),
-    error,
-    loading: isLoading,
-  };
+  return useMutation((id: string | number) => productClient.unpublish(id), {
+    onSuccess: () => {
+      toast.success(t('common:successfully-updated'));
+      queryClient.invalidateQueries(API_ENDPOINTS.PRODUCTS);
+    },
+    onError: (err: any) => {
+      toast.error(normalizeApiError(err).message);
+    },
+  });
 };
 
-export const useProductStockQuery = (options: Partial<ProductQueryOptions>) => {
-  const { data, error, isLoading } = useQuery<ProductPaginator, Error>(
-    [API_ENDPOINTS.LOW_OR_OUT_OF_STOCK_PRODUCTS, options],
-    ({ queryKey, pageParam }) =>
-      productClient.lowOrOutOfStockProducts(
-        Object.assign({}, queryKey[1], pageParam),
-      ),
-    {
-      keepPreviousData: true,
-    },
+// ── Product images ────────────────────────────────────────────────────────────
+
+export const useProductImagesQuery = (productId: string | number) => {
+  const { data, error, isLoading } = useQuery<KolshiProductImage[], Error>(
+    [API_ENDPOINTS.PRODUCT_IMAGES, productId],
+    () => productClient.getImages(productId),
+    { enabled: Boolean(productId) },
   );
 
-  return {
-    products: data?.data ?? [],
-    paginatorInfo: mapPaginatorData(data),
-    error,
-    loading: isLoading,
-  };
+  return { images: data ?? [], error, isLoading };
 };
 
-// Read All products by flash sale
+export const useAddProductImageMutation = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
 
-export const useProductsByFlashSaleQuery = (options: any) => {
-  const { data, error, isLoading } = useQuery<ProductPaginator, Error>(
-    [API_ENDPOINTS.PRODUCTS_BY_FLASH_SALE, options],
-    ({ queryKey, pageParam }) =>
-      productClient.getProductsByFlashSale(
-        Object.assign({}, queryKey[1], pageParam),
-      ),
+  return useMutation(
+    ({ productId, data }: { productId: string | number; data: KolshiProductImageInput }) =>
+      productClient.addImage(productId, data),
     {
-      keepPreviousData: true,
+      onSuccess: (_, { productId }) => {
+        queryClient.invalidateQueries([API_ENDPOINTS.PRODUCT_IMAGES, productId]);
+        queryClient.invalidateQueries(API_ENDPOINTS.PRODUCTS);
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
     },
   );
-
-  return {
-    products: data?.data ?? [],
-    paginatorInfo: mapPaginatorData(data),
-    error,
-    loading: isLoading,
-  };
 };
+
+export const useSetPrimaryImageMutation = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation(
+    ({ imageId }: { imageId: number; productId: string | number }) =>
+      productClient.setPrimaryImage(imageId),
+    {
+      onSuccess: (_, { productId }) => {
+        queryClient.invalidateQueries([API_ENDPOINTS.PRODUCT_IMAGES, productId]);
+        queryClient.invalidateQueries(API_ENDPOINTS.PRODUCTS);
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+    },
+  );
+};
+
+export const useDeleteProductImageMutation = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation(
+    ({ imageId }: { imageId: number; productId: string | number }) =>
+      productClient.deleteImage(imageId),
+    {
+      onSuccess: (_, { productId }) => {
+        toast.success(t('common:successfully-deleted'));
+        queryClient.invalidateQueries([API_ENDPOINTS.PRODUCT_IMAGES, productId]);
+        queryClient.invalidateQueries(API_ENDPOINTS.PRODUCTS);
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+    },
+  );
+};
+
+// ── Product variations ────────────────────────────────────────────────────────
+
+export const useProductVariationsQuery = (productId: string | number) => {
+  const { data, error, isLoading } = useQuery<KolshiVariation[], Error>(
+    [API_ENDPOINTS.PRODUCT_VARIATIONS, productId],
+    () => productClient.getVariations(productId),
+    { enabled: Boolean(productId) },
+  );
+
+  return { variations: data ?? [], error, isLoading };
+};
+
+export const useCreateVariationMutation = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation(
+    ({ productId, data }: { productId: string | number; data: KolshiVariationInput }) =>
+      productClient.addVariation(productId, data),
+    {
+      onSuccess: (_, { productId }) => {
+        toast.success(t('common:successfully-created'));
+        queryClient.invalidateQueries([API_ENDPOINTS.PRODUCT_VARIATIONS, productId]);
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+    },
+  );
+};
+
+export const useUpdateVariationMutation = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation(
+    ({
+      variationId,
+      productId,
+      data,
+    }: {
+      variationId: number;
+      productId: string | number;
+      data: KolshiVariationInput;
+    }) => productClient.updateVariation(variationId, data),
+    {
+      onSuccess: (_, { productId }) => {
+        toast.success(t('common:successfully-updated'));
+        queryClient.invalidateQueries([API_ENDPOINTS.PRODUCT_VARIATIONS, productId]);
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+    },
+  );
+};
+
+export const useToggleVariationMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    ({ variationId }: { variationId: number; productId: string | number }) =>
+      productClient.toggleVariation(variationId),
+    {
+      onSuccess: (_, { productId }) => {
+        queryClient.invalidateQueries([API_ENDPOINTS.PRODUCT_VARIATIONS, productId]);
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+    },
+  );
+};
+
+export const useDeleteVariationMutation = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation(
+    ({ variationId, productId }: { variationId: number; productId: string | number }) =>
+      productClient.deleteVariation(variationId),
+    {
+      onSuccess: (_, { productId }) => {
+        toast.success(t('common:successfully-deleted'));
+        queryClient.invalidateQueries([API_ENDPOINTS.PRODUCT_VARIATIONS, productId]);
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+    },
+  );
+};
+
+// ── CSV import ────────────────────────────────────────────────────────────────
+
+export const useImportProductsMutation = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation((file: File) => productClient.importProducts(file), {
+    onSuccess: (result: ProductImportResult) => {
+      if (result.failed === 0) {
+        toast.success(`Imported ${result.imported} products successfully.`);
+      } else {
+        toast.warning(
+          `Imported ${result.imported} products. ${result.failed} rows failed — check the error list.`,
+        );
+      }
+      queryClient.invalidateQueries(API_ENDPOINTS.PRODUCTS);
+    },
+    onError: (err: any) => {
+      toast.error(normalizeApiError(err).message);
+    },
+  });
+};
+
+// ── Stub hooks for deleted features (compile compat until A9) ─────────────────
+
+/** @deprecated No in-active product list in Kolshi — returns empty data. */
+export const useInActiveProductsQuery = (_options: any) => ({
+  products: [],
+  paginatorInfo: null,
+  error: null,
+  loading: false,
+});
+
+/** @deprecated No low-stock analytics in Kolshi — returns empty data. */
+export const useProductStockQuery = (_options: any) => ({
+  products: [],
+  paginatorInfo: null,
+  error: null,
+  loading: false,
+});
+
+/** @deprecated No flash-sale in Kolshi — returns empty data. */
+export const useProductsByFlashSaleQuery = (_options: any) => ({
+  products: [],
+  paginatorInfo: null,
+  error: null,
+  loading: false,
+});
+
+/** @deprecated No AI description in Kolshi — shows unsupported toast. */
+export const useGenerateDescriptionMutation = () =>
+  useMutation(async () => {
+    toast.error('AI description generation is not available in Kolshi.');
+  });
