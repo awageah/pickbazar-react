@@ -26,7 +26,6 @@ export default function DraftProductPage() {
   const [page, setPage] = useState(1);
   const [orderBy, setOrder] = useState('created_at');
   const [sortedBy, setColumn] = useState<SortOrder>(SortOrder.Desc);
-  const [type, setType] = useState('');
   const [category, setCategory] = useState('');
   const [visible, setVisible] = useState(false);
 
@@ -95,12 +94,7 @@ export default function DraftProductPage() {
                 setPage(1);
                 setCategory(slug);
               }}
-              onTypeFilter={({ slug }: { slug: string }) => {
-                setType(slug);
-                setPage(1);
-              }}
               enableCategory
-              enableType
             />
           </div>
         </div>

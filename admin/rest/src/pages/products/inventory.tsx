@@ -7,7 +7,7 @@ import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { useState } from 'react';
 import Search from '@/components/common/search';
 import { adminOnly } from '@/utils/auth-utils';
-import { Category, SortOrder, Type } from '@/types';
+import { Category, SortOrder } from '@/types';
 import { useProductsQuery } from '@/data/product';
 import { useRouter } from 'next/router';
 import CategoryTypeFilter from '@/components/filters/category-type-filter';
@@ -17,19 +17,13 @@ import { ArrowUp } from '@/components/icons/arrow-up';
 import ProductInventoryList from '@/components/product/product-inventory-list';
 import PageHeading from '@/components/common/page-heading';
 
-interface ProductTypeOptions {
-  name: string;
-  slug: string;
-}
 export default function ProductInventoryPage() {
   const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [orderBy, setOrder] = useState('created_at');
   const [sortedBy, setColumn] = useState<SortOrder>(SortOrder.Desc);
-  const [type, setType] = useState('');
   const [category, setCategory] = useState('');
-  const [productType, setProductType] = useState('');
   const { locale } = useRouter();
   const [visible, setVisible] = useState(true);
 
@@ -45,8 +39,6 @@ export default function ProductInventoryPage() {
     orderBy,
     sortedBy,
     categories: category,
-    product_type: productType,
-    type,
   });
 
   if (loading) return <Loader text={t('common:text-loading')} />;
@@ -95,22 +87,11 @@ export default function ProductInventoryPage() {
           <div className="mt-5 flex w-full flex-col border-t border-gray-200 pt-5 md:mt-8 md:flex-row md:items-center md:pt-8">
             <CategoryTypeFilter
               className="w-full"
-              type={type}
               onCategoryFilter={(category: Category) => {
                 setCategory(category?.slug!);
                 setPage(1);
               }}
-              onTypeFilter={(type: Type) => {
-                setType(type?.slug!);
-                setPage(1);
-              }}
-              onProductTypeFilter={(productType: ProductTypeOptions) => {
-                setProductType(productType?.slug!);
-                setPage(1);
-              }}
               enableCategory
-              enableType
-              enableProductType
             />
           </div>
         </div>

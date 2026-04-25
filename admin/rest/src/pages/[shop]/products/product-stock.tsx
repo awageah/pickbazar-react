@@ -41,7 +41,6 @@ export default function VendorProductStockPage() {
   });
   const shopId = shopData?.id!;
   const [searchTerm, setSearchTerm] = useState('');
-  const [type, setType] = useState('');
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
   const [orderBy, setOrder] = useState('created_at');
@@ -122,12 +121,7 @@ export default function VendorProductStockPage() {
                 setPage(1);
                 setCategory(categories?.slug);
               }}
-              onTypeFilter={(categories: Category) => {
-                setType(categories?.slug);
-                setPage(1);
-              }}
               enableCategory
-              enableType
             />
           </div>
         </div>

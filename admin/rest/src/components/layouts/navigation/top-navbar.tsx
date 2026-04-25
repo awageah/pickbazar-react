@@ -1,9 +1,6 @@
 import { SearchIcon } from '@/components/icons/search-icon';
 import LanguageSwitcher from '@/components/layouts/navigation/language-switcher';
-import MessageBar from '@/components/layouts/topbar/message-bar';
-import RecentOrderBar from '@/components/layouts/topbar/recent-order-bar';
 import SearchBar from '@/components/layouts/topbar/search-bar';
-import StoreNoticeBar from '@/components/layouts/topbar/store-notice-bar';
 import VisitStore from '@/components/layouts/topbar/visit-store';
 import Alert from '@/components/ui/alert';
 import CountdownTimer from '@/components/ui/countdown-timer';
@@ -268,31 +265,6 @@ const Navbar = () => {
                   <VisitStore />
                 </div>
 
-                {options?.pushNotification?.all?.order ||
-                options?.pushNotification?.all?.message ||
-                options?.pushNotification?.all?.storeNotice ? (
-                  <div className="flex items-center gap-3 px-0.5 py-3 sm:relative sm:border-gray-200/80 sm:py-3.5 sm:px-6 sm:border-s lg:py-5">
-                    {options?.pushNotification?.all?.order ? (
-                      <RecentOrderBar user={data} />
-                    ) : (
-                      ''
-                    )}
-
-                    {options?.pushNotification?.all?.message ? (
-                      <MessageBar user={data} />
-                    ) : (
-                      ''
-                    )}
-
-                    {!hasAccess(adminOnly, permissions) ? (
-                      options?.pushNotification?.all?.storeNotice ? (
-                        <StoreNoticeBar user={data} />
-                      ) : (
-                        ''
-                      )
-                    ) : null}
-                  </div>
-                ) : null}
               </>
             )}
           </div>

@@ -8,7 +8,7 @@ import ProductList from '@/components/product/product-list';
 import ErrorMessage from '@/components/ui/error-message';
 import Loader from '@/components/ui/loader/loader';
 import { useProductsQuery } from '@/data/product';
-import { Category, ProductType, SortOrder, Type } from '@/types';
+import { Category, SortOrder } from '@/types';
 import { adminOnly } from '@/utils/auth-utils';
 import cn from 'classnames';
 import { useTranslation } from 'next-i18next';
@@ -17,16 +17,9 @@ import { useRouter } from 'next/router';
 import { useState } from 'react';
 import PageHeading from '@/components/common/page-heading';
 
-interface ProductTypeOptions {
-  name: string;
-  slug: string;
-}
-
 export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [type, setType] = useState('');
   const [category, setCategory] = useState('');
-  const [productType, setProductType] = useState('');
   const [page, setPage] = useState(1);
   const { t } = useTranslation();
   const { locale } = useRouter();
@@ -42,9 +35,7 @@ export default function ProductsPage() {
     language: locale,
     limit: 20,
     page,
-    type,
     categories: category,
-    product_type: productType,
     name: searchTerm,
     orderBy,
     sortedBy,
@@ -99,22 +90,11 @@ export default function ProductsPage() {
           <div className="mt-5 flex w-full flex-col border-t border-gray-200 pt-5 md:mt-8 md:flex-row md:items-center md:pt-8">
             <CategoryTypeFilter
               className="w-full"
-              type={type}
               onCategoryFilter={(category: Category) => {
                 setCategory(category?.slug!);
                 setPage(1);
               }}
-              onTypeFilter={(type: Type) => {
-                setType(type?.slug!);
-                setPage(1);
-              }}
-              onProductTypeFilter={(productType: ProductTypeOptions) => {
-                setProductType(productType?.slug!);
-                setPage(1);
-              }}
               enableCategory
-              enableType
-              enableProductType
             />
           </div>
         </div>
