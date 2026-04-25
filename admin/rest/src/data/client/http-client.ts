@@ -120,8 +120,8 @@ export class HttpClient {
     return response.data;
   }
 
-  static async put<T>(url: string, data: unknown) {
-    const response = await Axios.put<T>(url, data);
+  static async put<T>(url: string, data: unknown, options?: { params?: Record<string, string | undefined> }) {
+    const response = await Axios.put<T>(url, data, { params: options?.params });
     return response.data;
   }
 

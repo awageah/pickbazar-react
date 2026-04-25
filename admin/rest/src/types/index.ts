@@ -108,15 +108,22 @@ export type QueryOptionsType = {
   sortedBy?: SortOrder;
 };
 
+/**
+ * Kolshi order statuses — SCREAMING_SNAKE_CASE from the backend.
+ * State machine: ORDER_RECEIVED → PROCESSING → AT_LOCAL_FACILITY → OUT_FOR_DELIVERY → COMPLETED
+ * CANCELLED is allowed from ORDER_RECEIVED and PROCESSING only.
+ */
 export enum OrderStatus {
-  PENDING = 'order-pending',
-  PROCESSING = 'order-processing',
-  COMPLETED = 'order-completed',
-  CANCELLED = 'order-cancelled',
-  REFUNDED = 'order-refunded',
-  FAILED = 'order-failed',
-  AT_LOCAL_FACILITY = 'order-at-local-facility',
-  OUT_FOR_DELIVERY = 'order-out-for-delivery',
+  ORDER_RECEIVED = 'ORDER_RECEIVED',
+  PROCESSING = 'PROCESSING',
+  AT_LOCAL_FACILITY = 'AT_LOCAL_FACILITY',
+  OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  // Legacy aliases kept for compile-compat until A9
+  PENDING = 'ORDER_RECEIVED',
+  REFUNDED = 'CANCELLED',
+  FAILED = 'CANCELLED',
 }
 
 export enum FlashSaleType {
@@ -138,13 +145,18 @@ export interface TodayTotalOrderByStatus {
   outForDelivery: number;
 }
 
+/** Kolshi payment statuses — SCREAMING_SNAKE_CASE. */
 export enum PaymentStatus {
-  PENDING = 'payment-pending',
-  PROCESSING = 'payment-processing',
-  SUCCESS = 'payment-success',
-  FAILED = 'payment-failed',
-  REVERSAL = 'payment-reversal',
-  COD = 'payment-cash-on-delivery',
+  CASH_ON_DELIVERY = 'CASH_ON_DELIVERY',
+  PENDING = 'PENDING',
+  PAID = 'PAID',
+  FAILED = 'FAILED',
+  REFUNDED = 'REFUNDED',
+  // Legacy aliases
+  SUCCESS = 'PAID',
+  COD = 'CASH_ON_DELIVERY',
+  PROCESSING = 'PENDING',
+  REVERSAL = 'REFUNDED',
 }
 
 export interface NameAndValueType {
@@ -2380,6 +2392,52 @@ export interface KolshiProductInput {
   gallery?: string[];
   is_taxable?: boolean;
   category_ids?: (number | string)[];
+}
+
+// ── Kolshi-specific order types ───────────────────────────────────────────────
+
+/** A single line item in a Kolshi order. */
+export interface KolshiOrderItem {
+  product_id: number;
+  product_name: string;
+  product_image?: string;
+  variation_id?: number | null;
+  variation_options?: string | null;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+}
+
+/** Order note from GET /orders/{id}/notes. */
+export interface KolshiOrderNote {
+  id: number;
+  order_id: number;
+  note: string;
+  customer_visible: boolean;
+  created_by?: number;
+  created_at: string;
+}
+
+/** One entry in GET /orders/{id}/history. */
+export interface KolshiOrderHistoryEntry {
+  id: number;
+  order_id: number;
+  status: string;
+  note?: string;
+  changed_by?: number;
+  changed_at: string;
+}
+
+/** Payment detail from GET /payments/order/{orderId}. */
+export interface KolshiPayment {
+  id: number;
+  order_id: number;
+  amount: number;
+  gateway: string;
+  status: string;
+  transaction_id?: string;
+  refund_reason?: string;
+  created_at: string;
 }
 
 /** CSV import response row error. */

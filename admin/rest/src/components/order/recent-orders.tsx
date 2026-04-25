@@ -5,7 +5,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
 import ActionButtons from '@/components/common/action-buttons';
-import { MappedPaginatorInfo, Order, OrderStatus, Product } from '@/types';
+import { MappedPaginatorInfo, Order, OrderStatus } from '@/types';
 import { useTranslation } from 'next-i18next';
 import Badge from '@/components/ui/badge/badge';
 import StatusColor from '@/components/order/status-color';
@@ -36,7 +36,6 @@ const RecentOrders = ({
 }: IProps) => {
   const { t } = useTranslation();
   const { alignLeft, alignRight } = useIsRTL();
-  const rowExpandable = (record: any) => record.children?.length;
 
   const columns = [
     {
@@ -48,17 +47,17 @@ const RecentOrders = ({
     },
     {
       title: t('table:table-item-customer'),
-      dataIndex: 'customer',
-      key: 'name',
+      dataIndex: 'customer_name',
+      key: 'customer_name',
       align: alignLeft,
       width: 250,
-      render: (customer: any) => (
+      render: (customerName: string, record: Order) => (
         <div className="flex items-center">
-          <Avatar name={customer?.name} />
+          <Avatar name={customerName} />
           <div className="flex flex-col whitespace-nowrap font-medium ms-2">
-            {customer?.name ? customer?.name : t('common:text-guest')}
+            {customerName ?? t('common:text-guest')}
             <span className="text-[13px] font-normal text-gray-500/80">
-              {customer?.email}
+              {record.customer_contact}
             </span>
           </div>
         </div>
@@ -68,8 +67,8 @@ const RecentOrders = ({
       title: t('table:table-item-products'),
       dataIndex: 'products',
       key: 'products',
-      align: 'center',
-      render: (products: Product) => <span>{products.length}</span>,
+      align: 'center' as const,
+      render: (products: any[]) => <span>{products?.length ?? 0}</span>,
     },
 
     {
@@ -126,7 +125,6 @@ const RecentOrders = ({
             <ActionButtons
               id={id}
               detailsUrl={`${Routes.order.list}/${id}`}
-              customLocale={order.language}
             />
           </>
         );
@@ -163,10 +161,6 @@ const RecentOrders = ({
           data={orders}
           rowKey="id"
           scroll={{ x: 1000 }}
-          expandable={{
-            expandedRowRender: () => '',
-            rowExpandable: rowExpandable,
-          }}
         />
         {!!paginatorInfo?.total && (
           <div className="flex items-center justify-between py-2">

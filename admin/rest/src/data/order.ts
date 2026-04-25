@@ -1,5 +1,4 @@
-import { useQuery } from 'react-query';
-import { useMutation, useQueryClient } from 'react-query';
+import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'next-i18next';
 import { API_ENDPOINTS } from '@/data/client/api-endpoints';
@@ -8,25 +7,24 @@ import {
   OrderQueryOptions,
   OrderPaginator,
   Order,
-  InvoiceTranslatedText,
-  CreateOrderInput,
+  KolshiOrderNote,
+  KolshiOrderHistoryEntry,
+  KolshiPayment,
 } from '@/types';
 import { orderClient } from './client/order';
-import { useRouter } from 'next/router';
-import { Routes } from '@/config/routes';
+import { normalizeApiError } from '@/utils/error-handler';
+
+// ── List / detail ─────────────────────────────────────────────────────────────
 
 export const useOrdersQuery = (
   params: Partial<OrderQueryOptions>,
-  options: any = {}
+  options: any = {},
 ) => {
   const { data, error, isLoading } = useQuery<OrderPaginator, Error>(
     [API_ENDPOINTS.ORDERS, params],
     ({ queryKey, pageParam }) =>
-      orderClient.paginated(Object.assign({}, queryKey[1], pageParam)),
-    {
-      keepPreviousData: true,
-      ...options,
-    }
+      orderClient.paginated(Object.assign({}, queryKey[1] as any, pageParam)),
+    { keepPreviousData: true, ...options },
   );
   return {
     orders: data?.data ?? [],
@@ -36,142 +34,215 @@ export const useOrdersQuery = (
   };
 };
 
-export const useOrderQuery = ({
-  id,
-  language,
-}: {
-  id: string;
-  language: string;
-}) => {
+export const useOrderQuery = ({ id }: { id: string; language?: string }) => {
   const { data, error, isLoading } = useQuery<Order, Error>(
-    [API_ENDPOINTS.ORDERS, { id, language }],
-    () => orderClient.get({ id, language }),
-    {
-      enabled: Boolean(id), // Set to true to enable or false to disable
-    }
+    [API_ENDPOINTS.ORDERS, { id }],
+    () => orderClient.get({ id }),
+    { enabled: Boolean(id) },
   );
-
-  return {
-    order: data,
-    error,
-    isLoading,
-  };
+  return { order: data, error, isLoading };
 };
 
-// export const useCreateOrderMutation = () => {
-//   return useMutation(orderClient.create);
-// };
+// ── Status transitions ────────────────────────────────────────────────────────
 
-export function useCreateOrderMutation() {
-  const router = useRouter();
-  const { locale } = router;
+/** Advance to the next status in the Kolshi state machine. */
+export const useAdvanceOrderStatusMutation = () => {
+  const queryClient = useQueryClient();
   const { t } = useTranslation();
 
-  const { mutate: createOrder, isLoading } = useMutation(orderClient.create, {
-    onSuccess: (data: any) => {
-      if (data?.id) {
-        router.push(`${Routes.order.list}/${data?.id}`);
-      }
-    },
-    onError: (error) => {
-      const {
-        response: { data },
-      }: any = error ?? {};
-      toast.error(data?.message);
-    },
-  });
-
-  function formatOrderInput(input: CreateOrderInput) {
-    const formattedInputs = {
-      ...input,
-      language: locale,
-      // TODO: Make it for Graphql too
-      invoice_translated_text: {
-        subtotal: t('order-sub-total'),
-        discount: t('order-discount'),
-        tax: t('order-tax'),
-        delivery_fee: t('order-delivery-fee'),
-        total: t('order-total'),
-        products: t('text-products'),
-        quantity: t('text-quantity'),
-        invoice_no: t('text-invoice-no'),
-        date: t('text-date'),
+  return useMutation(
+    ({ id, newStatus }: { id: string | number; newStatus: string }) =>
+      orderClient.advanceStatus(id, newStatus),
+    {
+      onSuccess: (_, { id }) => {
+        toast.success(t('common:successfully-updated'));
+        queryClient.invalidateQueries([API_ENDPOINTS.ORDERS, { id: String(id) }]);
+        queryClient.invalidateQueries(API_ENDPOINTS.ORDERS);
       },
-    };
-    createOrder(formattedInputs);
-  }
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+    },
+  );
+};
 
+export const useCancelOrderMutation = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation(
+    (id: string | number) => orderClient.cancel(id),
+    {
+      onSuccess: (_, id) => {
+        toast.success(t('common:successfully-updated'));
+        queryClient.invalidateQueries([API_ENDPOINTS.ORDERS, { id: String(id) }]);
+        queryClient.invalidateQueries(API_ENDPOINTS.ORDERS);
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+    },
+  );
+};
+
+export const useUpdateOrderStatusMutation = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation(
+    ({ id, status, note }: { id: string | number; status: string; note?: string }) =>
+      orderClient.updateStatus(id, status, note),
+    {
+      onSuccess: (_, { id }) => {
+        toast.success(t('common:successfully-updated'));
+        queryClient.invalidateQueries([API_ENDPOINTS.ORDERS, { id: String(id) }]);
+        queryClient.invalidateQueries(API_ENDPOINTS.ORDERS);
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+    },
+  );
+};
+
+// ── Order notes ───────────────────────────────────────────────────────────────
+
+export const useOrderNotesQuery = (orderId: string | number) => {
+  const { data, error, isLoading } = useQuery<KolshiOrderNote[], Error>(
+    [API_ENDPOINTS.ORDER_NOTES, orderId],
+    () => orderClient.getNotes(orderId),
+    { enabled: Boolean(orderId) },
+  );
+  return { notes: data ?? [], error, isLoading };
+};
+
+export const useAddOrderNoteMutation = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation(
+    ({
+      orderId,
+      note,
+      customer_visible = false,
+    }: {
+      orderId: string | number;
+      note: string;
+      customer_visible?: boolean;
+    }) => orderClient.addNote(orderId, { note, customer_visible }),
+    {
+      onSuccess: (_, { orderId }) => {
+        queryClient.invalidateQueries([API_ENDPOINTS.ORDER_NOTES, orderId]);
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+    },
+  );
+};
+
+export const useDeleteOrderNoteMutation = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation(
+    ({ orderId, noteId }: { orderId: string | number; noteId: number }) =>
+      orderClient.deleteNote(orderId, noteId),
+    {
+      onSuccess: (_, { orderId }) => {
+        toast.success(t('common:successfully-deleted'));
+        queryClient.invalidateQueries([API_ENDPOINTS.ORDER_NOTES, orderId]);
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+    },
+  );
+};
+
+// ── Order history ─────────────────────────────────────────────────────────────
+
+export const useOrderHistoryQuery = (id: string | number) => {
+  const { data, error, isLoading } = useQuery<KolshiOrderHistoryEntry[], Error>(
+    [API_ENDPOINTS.ORDER_STATUS, id],
+    () => orderClient.getHistory(id),
+    { enabled: Boolean(id) },
+  );
+  return { history: data ?? [], error, isLoading };
+};
+
+// ── Payments / refunds ────────────────────────────────────────────────────────
+
+export const useOrderPaymentQuery = (orderId: string | number) => {
+  const { data, error, isLoading } = useQuery<KolshiPayment[], Error>(
+    [API_ENDPOINTS.DOWNLOAD_INVOICE, orderId],
+    () => orderClient.getPayment(orderId),
+    { enabled: Boolean(orderId) },
+  );
+  return { payments: data ?? [], error, isLoading };
+};
+
+export const useRefundMutation = () => {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation(
+    ({ paymentId, reason }: { paymentId: number; reason: string; orderId: string }) =>
+      orderClient.refund(paymentId, reason),
+    {
+      onSuccess: (_, { orderId }) => {
+        toast.success('Refund initiated successfully.');
+        queryClient.invalidateQueries([API_ENDPOINTS.DOWNLOAD_INVOICE, orderId]);
+        queryClient.invalidateQueries([API_ENDPOINTS.ORDERS, { id: orderId }]);
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+    },
+  );
+};
+
+// ── Stub hooks (compile-compat until A9) ─────────────────────────────────────
+
+/** @deprecated Admin order creation is not supported in Kolshi. */
+export function useCreateOrderMutation() {
   return {
-    createOrder: formatOrderInput,
-    isLoading,
+    createOrder: () => {
+      toast.error('Admin order creation is not supported in Kolshi.');
+    },
+    isLoading: false,
   };
 }
 
+/** @deprecated Invoice download replaced by order detail view. */
+export const useDownloadInvoiceMutation = (_args: any, _options?: any) => ({
+  refetch: async () => ({ data: null }),
+});
+
+/** @deprecated Replaced by useAdvanceOrderStatusMutation. */
 export const useUpdateOrderMutation = () => {
-  const { t } = useTranslation();
   const queryClient = useQueryClient();
-  return useMutation(orderClient.update, {
-    onSuccess: () => {
-      toast.success(t('common:successfully-updated'));
-    },
-    // Always refetch after error or success:
-    onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.ORDERS);
-    },
-  });
-};
-
-export const useDownloadInvoiceMutation = (
-  {
-    order_id,
-    isRTL,
-    language,
-  }: { order_id: string; isRTL: boolean; language: string },
-  options: any = {}
-) => {
   const { t } = useTranslation();
-  const formattedInput = {
-    order_id,
-    is_rtl: isRTL,
-    language,
-    translated_text: {
-      subtotal: t('order-sub-total'),
-      discount: t('order-discount'),
-      tax: t('order-tax'),
-      delivery_fee: t('order-delivery-fee'),
-      total: t('order-total'),
-      products: t('text-products'),
-      quantity: t('text-quantity'),
-      invoice_no: t('text-invoice-no'),
-      date: t('text-date'),
-      paid_from_wallet: t('text-paid_from_wallet'),
-      amount_due: t('text-amount-due'),
-    },
-  };
-
-  return useQuery<string, Error>(
-    [API_ENDPOINTS.ORDER_INVOICE_DOWNLOAD],
-    () => orderClient.downloadInvoice(formattedInput),
+  return useMutation(
+    ({ id, order_status }: { id: string; order_status: string }) =>
+      orderClient.updateStatus(id, order_status),
     {
-      ...options,
-    }
+      onSuccess: () => {
+        toast.success(t('common:successfully-updated'));
+        queryClient.invalidateQueries(API_ENDPOINTS.ORDERS);
+      },
+      onError: (err: any) => {
+        toast.error(normalizeApiError(err).message);
+      },
+    },
   );
 };
 
+/** @deprecated No notification reads in Kolshi — no-op. */
 export function useOrderSeen() {
-  const queryClient = useQueryClient();
-  const { t } = useTranslation('common');
-  const {
-    mutate: readOrderNotice,
-    isLoading,
-    isSuccess,
-  } = useMutation(orderClient.orderSeen, {
-    onSuccess: () => {},
-    // Always refetch after error or success:
-    onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.ORDER_SEEN);
-    },
-  });
-
-  return { readOrderNotice, isLoading, isSuccess };
+  return {
+    readOrderNotice: () => {},
+    isLoading: false,
+    isSuccess: true,
+  };
 }
