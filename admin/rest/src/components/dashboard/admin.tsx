@@ -1,16 +1,10 @@
 /**
- * A4 — Admin dashboard rebuilt around Kolshi's derivable KPIs.
+ * Super-admin dashboard — A4 + A8.
  *
- * Kolshi has no platform-wide `/analytics` endpoint. KPIs are derived from
- * queue endpoints (pending shops, orders count, users count, pending
- * withdrawals). Each query fetches page 0 / size 1 and reads `total`.
- *
- * Removed: analytics charts, popular products, low-stock chart, top-rated
- * products, product-by-category, revenue widgets, column charts — all
- * depended on missing analytics endpoints.
- *
- * Kept: recent orders list, pending withdrawals table, pending shops link.
+ * KPIs derived from queue endpoints (pending shops, orders, users,
+ * pending withdrawals). System health + notification stats added in A8.
  */
+import dynamic from 'next/dynamic';
 import RecentOrders from '@/components/order/recent-orders';
 import WithdrawTable from '@/components/withdraw/withdraw-table';
 import Loader from '@/components/ui/loader/loader';
@@ -25,6 +19,7 @@ import {
   useOrdersCountQuery,
   useUsersCountQuery,
   usePendingWithdrawalsCountQuery,
+  useNotificationStatsQuery,
 } from '@/data/dashboard';
 import { useOrdersQuery } from '@/data/order';
 import { useWithdrawsQuery } from '@/data/withdraw';
@@ -32,6 +27,56 @@ import { useTranslation } from 'next-i18next';
 import { Routes } from '@/config/routes';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
+
+const SystemStatusCard = dynamic(
+  () => import('@/components/dashboard/system-status-card'),
+);
+
+// ── Notification stats widget ─────────────────────────────────────────────────
+
+function NotificationStatsWidget() {
+  const { t } = useTranslation();
+  const { stats } = useNotificationStatsQuery({ retry: false });
+
+  if (!stats) return null;
+
+  const hasFailed = stats.failed > 0 || stats.dead_letter > 0;
+
+  return (
+    <div
+      className={`mb-6 rounded-lg p-5 ${hasFailed ? 'border border-red-200 bg-red-50' : 'bg-light'}`}
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-base font-semibold text-heading">
+          Notification Health
+        </h3>
+        <Link
+          href={Routes.notifyLogs}
+          className="text-sm text-accent hover:underline"
+        >
+          Manage →
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {(
+          [
+            { label: 'Sent', value: stats.sent, color: 'text-green-600' },
+            { label: 'Pending', value: stats.pending, color: 'text-yellow-600' },
+            { label: 'Failed', value: stats.failed, color: 'text-red-600' },
+            { label: 'Dead-letter', value: stats.dead_letter, color: 'text-red-800' },
+          ] as const
+        ).map(({ label, value, color }) => (
+          <div key={label}>
+            <p className="text-xs text-gray-500">{label}</p>
+            <p className={`text-2xl font-bold ${color}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const { t } = useTranslation();
@@ -58,7 +103,7 @@ export default function Dashboard() {
     size: 5,
     page: 1,
     status: 'PENDING',
-  });
+  } as any);
 
   return (
     <motion.div
@@ -101,6 +146,12 @@ export default function Dashboard() {
           iconBgStyle={{ backgroundColor: '#CCEBF7' }}
           price={totalUsersCount}
         />
+      </div>
+
+      {/* System status + notification stats — side by side on large screens */}
+      <div className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <SystemStatusCard />
+        <NotificationStatsWidget />
       </div>
 
       {/* Pending withdrawals */}

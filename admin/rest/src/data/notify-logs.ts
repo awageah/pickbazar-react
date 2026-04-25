@@ -1,80 +1,97 @@
-import Router, { useRouter } from 'next/router';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'next-i18next';
-import { Routes } from '@/config/routes';
 import { API_ENDPOINTS } from './client/api-endpoints';
-import { NotifyLogsPaginator, NotifyLogsQueryOptions } from '@/types';
 import { mapPaginatorData } from '@/utils/data-mappers';
-import { Config } from '@/config';
 import { notifyClient } from '@/data/client/notify-logs';
+import { KolshiAdminNotification, KolshiNotificationStats } from '@/types';
+import { normalizeApiError } from '@/utils/error-handler';
 
-// get all by receiver ID
-export const useNotifyLogsQuery = (
-  params: Partial<NotifyLogsQueryOptions>,
-  options: any = {}
+// ── Admin: failed notifications ───────────────────────────────────────────────
+
+export const useAdminFailedNotificationsQuery = (
+  params: { page?: number; limit?: number } = {},
+  opts: any = {},
 ) => {
-  const { data, error, isLoading } = useQuery<NotifyLogsPaginator, Error>(
-    [API_ENDPOINTS.NOTIFY_LOGS, params],
-    ({ queryKey, pageParam }) =>
-      notifyClient.paginated(Object.assign({}, queryKey[1], pageParam)),
-    {
-      keepPreviousData: true,
-    }
+  const { data, error, isLoading } = useQuery(
+    [API_ENDPOINTS.ADMIN_NOTIFICATIONS_FAILED, params],
+    () => notifyClient.failed(params),
+    { keepPreviousData: true, ...opts },
   );
-
   return {
-    notifyLogs: data?.data ?? [],
-    paginatorInfo: mapPaginatorData(data),
+    notifications: (data as any)?.data ?? [],
+    paginatorInfo: mapPaginatorData(data as any),
     error,
     loading: isLoading,
   };
 };
 
-// delete
-export const useDeleteNotifyLogMutation = () => {
-  const queryClient = useQueryClient();
-  const { t } = useTranslation();
+// ── Admin: dead-letter queue ──────────────────────────────────────────────────
 
-  return useMutation(notifyClient.delete, {
+export const useAdminDeadLetterQuery = (
+  params: { page?: number; limit?: number } = {},
+  opts: any = {},
+) => {
+  const { data, error, isLoading } = useQuery(
+    [API_ENDPOINTS.ADMIN_NOTIFICATIONS_DEAD_LETTER, params],
+    () => notifyClient.deadLetter(params),
+    { keepPreviousData: true, ...opts },
+  );
+  return {
+    notifications: (data as any)?.data ?? [],
+    paginatorInfo: mapPaginatorData(data as any),
+    error,
+    loading: isLoading,
+  };
+};
+
+// ── Admin: notification stats ─────────────────────────────────────────────────
+
+export const useAdminNotificationStatsQuery = (opts: any = {}) => {
+  const { data, error, isLoading } = useQuery<KolshiNotificationStats, Error>(
+    [API_ENDPOINTS.ADMIN_NOTIFICATIONS_STATS],
+    notifyClient.stats,
+    { staleTime: 30_000, retry: 1, ...opts },
+  );
+  return { stats: data ?? null, error, loading: isLoading };
+};
+
+// ── Admin: retry failed notification ─────────────────────────────────────────
+
+export const useRetryNotificationMutation = () => {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+
+  return useMutation(({ id }: { id: number }) => notifyClient.retry(id), {
     onSuccess: () => {
-      toast.success(t('common:successfully-deleted'));
-    },
-    // Always refetch after error or success:
-    onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.NOTIFY_LOGS);
-    },
-  });
-};
-
-export const useNotifyLogReadMutation = () => {
-  const queryClient = useQueryClient();
-  const { t } = useTranslation();
-
-  return useMutation(notifyClient.notifyLogSeen, {
-    onSuccess: async () => {},
-    // Always refetch after error or success:
-    onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.NOTIFY_LOG_SEEN);
+      toast.success('Retry queued');
     },
     onError: (error: any) => {
-      toast.error(t(`common:${error?.response?.data.message}`));
+      toast.error(normalizeApiError(error)?.message ?? 'Retry failed');
     },
-  });
-};
-
-export const useNotifyLogAllReadMutation = () => {
-  const queryClient = useQueryClient();
-  const { t } = useTranslation('common');
-
-  return useMutation(notifyClient.readAllNotifyLogs, {
-    onSuccess: () => {},
-    // Always refetch after error or success:
     onSettled: () => {
-      queryClient.invalidateQueries(API_ENDPOINTS.READ_ALL_NOTIFY_LOG);
-    },
-    onError: (error: any) => {
-      toast.error(t(`common:${error?.response?.data.message}`));
+      queryClient.invalidateQueries(API_ENDPOINTS.ADMIN_NOTIFICATIONS_FAILED);
+      queryClient.invalidateQueries(API_ENDPOINTS.ADMIN_NOTIFICATIONS_STATS);
     },
   });
 };
+
+// ── Legacy compat stubs (keep compile-compat until A9 cleanup) ───────────────
+
+/** @deprecated */
+export const useNotifyLogsQuery = (
+  _params: any = {},
+  _opts: any = {},
+) => ({ notifyLogs: [], paginatorInfo: null, error: null, loading: false });
+
+/** @deprecated */
+export const useDeleteNotifyLogMutation = () =>
+  useMutation(notifyClient.delete as any);
+
+/** @deprecated */
+export const useNotifyLogReadMutation = () =>
+  useMutation(notifyClient.notifyLogSeen as any);
+
+/** @deprecated */
+export const useNotifyLogAllReadMutation = () =>
+  useMutation(notifyClient.readAllNotifyLogs as any);

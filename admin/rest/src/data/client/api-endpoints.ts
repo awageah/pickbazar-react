@@ -137,23 +137,45 @@ export const API_ENDPOINTS = {
   REVIEW_RESPONSE: 'reviews/{reviewId}/response',
 
   // ── Settings ─────────────────────────────────────────────────────────────
-  /** GET (list of {key,value,category}) | PUT /{key} */
+  /** GET /settings (public paginated list) | POST /settings | PUT /settings/{key} | DELETE /settings/{key} */
   SETTINGS: 'settings',
+  /** GET /settings/category/{category} */
+  SETTINGS_BY_CATEGORY: 'settings/category/{category}',
   /** POST /settings/cache/refresh */
-  ANALYTICS: 'settings/cache/refresh',
+  SETTINGS_CACHE_REFRESH: 'settings/cache/refresh',
+  /** GET /settings/cache/stats */
+  SETTINGS_CACHE_STATS: 'settings/cache/stats',
 
   // ── System ───────────────────────────────────────────────────────────────
   /** GET /system/status */
-  LOW_STOCK_PRODUCTS_ANALYTICS: 'system/status',
-
-  // ── Notifications (admin view) ────────────────────────────────────────────
-  /** GET /notifications/failed | GET /notifications/dead-letter */
-  NOTIFY_LOGS: 'notifications',
-  NOTIFY_LOG_SEEN: 'notifications/failed',
-  READ_ALL_NOTIFY_LOG: 'notifications/dead-letter',
+  SYSTEM_STATUS: 'system/status',
 
   // ── Analytics ────────────────────────────────────────────────────────────
-  /** GET /analytics/shops/{id}?days=30 */
+  /** GET /analytics/shops/{shopId}?days=30 */
+  SHOP_ANALYTICS: 'analytics/shops/{shopId}',
+
+  // ── Notifications (admin view — J14–J17) ──────────────────────────────────
+  /** GET /notifications — paginated user notifications (J18) */
+  NOTIFY_LOGS: 'notifications',
+  /** GET /admin/notifications/failed — paginated failed notifications */
+  ADMIN_NOTIFICATIONS_FAILED: 'admin/notifications/failed',
+  /** GET /admin/notifications/dead-letter — dead-letter queue */
+  ADMIN_NOTIFICATIONS_DEAD_LETTER: 'admin/notifications/dead-letter',
+  /** GET /admin/notifications/stats */
+  ADMIN_NOTIFICATIONS_STATS: 'admin/notifications/stats',
+  /** POST /admin/notifications/{id}/retry */
+  ADMIN_NOTIFICATIONS_RETRY: 'admin/notifications/{id}/retry',
+
+  // ── Legacy keys — kept for compile compat until A9 ────────────────────────
+  /** @deprecated use SETTINGS_CACHE_REFRESH */
+  ANALYTICS: 'settings/cache/refresh',
+  /** @deprecated use SYSTEM_STATUS */
+  LOW_STOCK_PRODUCTS_ANALYTICS: 'system/status',
+  /** @deprecated use ADMIN_NOTIFICATIONS_FAILED */
+  NOTIFY_LOG_SEEN: 'admin/notifications/failed',
+  /** @deprecated use ADMIN_NOTIFICATIONS_DEAD_LETTER */
+  READ_ALL_NOTIFY_LOG: 'admin/notifications/dead-letter',
+  /** @deprecated use SHOP_ANALYTICS */
   CATEGORY_WISE_PRODUCTS: 'analytics/shops/{id}',
   CATEGORY_WISE_PRODUCTS_SALE: 'analytics/shops/{id}',
 

@@ -1,250 +1,282 @@
-import { useEffect, useState } from 'react';
-import ColumnChart from '@/components/widgets/column-chart';
-import StickerCard from '@/components/widgets/sticker-card';
-import {
-  useAnalyticsQuery,
-  useProductByCategoryQuery,
-  useTopRatedProductsQuery,
-} from '@/data/dashboard';
+/**
+ * Store-owner dashboard — A8.
+ *
+ * Fetches analytics from GET /analytics/shops/{id}?days=30.
+ * Renders KPI cards, orders-by-status bar, top products list,
+ * and a simple revenue chart (daily points from `revenueChart`).
+ *
+ * Super-admins who land on this route see the ShopList instead.
+ */
+import { useState } from 'react';
+import dynamic from 'next/dynamic';
+import { useTranslation } from 'next-i18next';
+import { motion } from 'framer-motion';
 import {
   adminOnly,
-  adminAndOwnerOnly,
   getAuthCredentials,
   hasAccess,
 } from '@/utils/auth-utils';
-import usePrice from '@/utils/use-price';
-import cn from 'classnames';
-import { useTranslation } from 'next-i18next';
-import dynamic from 'next/dynamic';
-import { useRouter } from 'next/router';
+import { useMeQuery } from '@/data/user';
+import { useShopAnalyticsQuery } from '@/data/dashboard';
+import StickerCard from '@/components/widgets/sticker-card';
+import Loader from '@/components/ui/loader/loader';
+import Button from '@/components/ui/button';
 import { EaringIcon } from '@/components/icons/summary/earning';
 import { ShoppingIcon } from '@/components/icons/summary/shopping';
 import { ChecklistIcon } from '@/components/icons/summary/checklist';
 import { BasketIcon } from '@/components/icons/summary/basket';
-import Button from '@/components/ui/button';
-import { motion } from 'framer-motion';
-import PageHeading from '@/components/common/page-heading';
+import usePrice from '@/utils/use-price';
+import { KolshiTopProduct } from '@/types';
+
 const ShopList = dynamic(() => import('@/components/dashboard/shops/shops'));
-const Message = dynamic(() => import('@/components/dashboard/shops/message'));
-const StoreNotices = dynamic(
-  () => import('@/components/dashboard/shops/store-notices'),
-);
-const OrderStatusWidget = dynamic(
-  () => import('@/components/dashboard/widgets/box/widget-order-by-status'),
-);
-const ProductCountByCategory = dynamic(
-  () =>
-    import(
-      '@/components/dashboard/widgets/table/widget-product-count-by-category'
-    ),
-);
 
-const TopRatedProducts = dynamic(
-  () => import('@/components/dashboard/widgets/box/widget-top-rate-product'),
-);
+// ── Day-range selector ────────────────────────────────────────────────────────
 
-const MAP_PAGE_LIST: Record<string, any> = {
-  ShopList: ShopList,
-  Message: Message,
-  StoreNotices: StoreNotices,
+const DAY_OPTIONS = [7, 30, 90, 365] as const;
+
+// ── Revenue mini-chart (pure CSS bar chart) ───────────────────────────────────
+
+function RevenueBars({ points }: { points: { date: string; revenue: number }[] }) {
+  if (!points || points.length === 0) return null;
+  const max = Math.max(...points.map((p) => p.revenue), 1);
+  return (
+    <div className="flex h-32 items-end gap-1 overflow-hidden">
+      {points.map((p) => (
+        <div
+          key={p.date}
+          className="group relative flex-1 rounded-t bg-accent/70 hover:bg-accent"
+          style={{ height: `${Math.max((p.revenue / max) * 100, 2)}%` }}
+          title={`${p.date}: ${p.revenue.toFixed(2)}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Orders-by-status bar ──────────────────────────────────────────────────────
+
+const STATUS_COLOR: Record<string, string> = {
+  ORDER_RECEIVED: 'bg-blue-400',
+  PROCESSING: 'bg-yellow-400',
+  AT_LOCAL_FACILITY: 'bg-orange-400',
+  OUT_FOR_DELIVERY: 'bg-purple-400',
+  COMPLETED: 'bg-green-500',
+  CANCELLED: 'bg-red-400',
 };
+
+function OrdersByStatus({ byStatus }: { byStatus: Record<string, number> }) {
+  const { t } = useTranslation();
+  const entries = Object.entries(byStatus);
+  const total = entries.reduce((s, [, v]) => s + v, 0) || 1;
+  return (
+    <div>
+      <div className="mb-2 flex h-4 overflow-hidden rounded-full">
+        {entries.map(([status, count]) => (
+          <div
+            key={status}
+            className={`${STATUS_COLOR[status] ?? 'bg-gray-300'}`}
+            style={{ width: `${(count / total) * 100}%` }}
+            title={`${status}: ${count}`}
+          />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {entries.map(([status, count]) => (
+          <div key={status} className="flex items-center gap-1.5">
+            <span
+              className={`inline-block h-2.5 w-2.5 rounded-full ${STATUS_COLOR[status] ?? 'bg-gray-300'}`}
+            />
+            <span className="text-xs text-body">
+              {status.replace(/_/g, ' ')}: {count}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Owner layout ──────────────────────────────────────────────────────────────
 
 const OwnerShopLayout = () => {
   const { t } = useTranslation();
-  const { locale } = useRouter();
-  const router = useRouter();
-  const { permissions } = getAuthCredentials();
-  const { data, isLoading: loading } = useAnalyticsQuery();
-  const [activeTimeFrame, setActiveTimeFrame] = useState(1);
-  const [orderDataRange, setOrderDataRange] = useState(
-    data?.todayTotalOrderByStatus,
-  );
+  const { data: me } = useMeQuery();
+  const [days, setDays] = useState<number>(30);
 
-  const {
-    data: productByCategory,
-    isLoading: productByCategoryLoading,
-    error: productByCategoryError,
-  } = useProductByCategoryQuery({ limit: 10, language: locale });
+  // Use first shop belonging to the owner
+  const shopId = (me as any)?.shops?.[0]?.id ?? (me as any)?.managed_shop?.id;
 
-  const {
-    data: topRatedProducts,
-    isLoading: topRatedProductsLoading,
-    error: topRatedProductsError,
-  } = useTopRatedProductsQuery({ limit: 10, language: locale });
+  const { analytics, loading, error } = useShopAnalyticsQuery(shopId, days);
 
-  const { price: total_revenue } = usePrice(
-    data && {
-      amount: data?.totalRevenue!,
-    },
-  );
-  const { price: total_refund } = usePrice(
-    data && {
-      amount: data?.totalRefunds!,
-    },
-  );
-
-  const { price: todays_revenue } = usePrice(
-    data && {
-      amount: data?.todaysRevenue!,
-    },
-  );
-  const { query } = router;
-
-  const classNames = {
-    basic:
-      'lg:text-[1.375rem] font-semibold border-b-2 border-solid border-transparent lg:pb-5 pb-3 -mb-0.5',
-    selected: 'text-accent hover:text-accent-hover border-current',
-    normal: 'hover:text-black/80',
-  };
-  let salesByYear: number[] = Array.from({ length: 12 }, (_) => 0);
-  if (!!data?.totalYearSaleByMonth?.length) {
-    salesByYear = data.totalYearSaleByMonth.map((item: any) =>
-      item.total.toFixed(2),
-    );
-  }
-
-  const timeFrame = [
-    { name: t('text-today'), day: 1 },
-    { name: t('text-weekly'), day: 7 },
-    { name: t('text-monthly'), day: 30 },
-    { name: t('text-yearly'), day: 365 },
-  ];
-
-  useEffect(() => {
-    switch (activeTimeFrame) {
-      case 1:
-        setOrderDataRange(data?.todayTotalOrderByStatus);
-        break;
-      case 7:
-        setOrderDataRange(data?.weeklyTotalOrderByStatus);
-        break;
-      case 30:
-        setOrderDataRange(data?.todayTotalOrderByStatus);
-        break;
-      case 365:
-        setOrderDataRange(data?.yearlyTotalOrderByStatus);
-        break;
-
-      default:
-        setOrderDataRange(orderDataRange);
-        break;
-    }
+  const { price: totalRevenue } = usePrice({
+    amount: analytics?.totalRevenue ?? 0,
+  });
+  const { price: netRevenue } = usePrice({
+    amount: analytics?.netRevenue ?? 0,
+  });
+  const { price: avgOrder } = usePrice({
+    amount: analytics?.averageOrderValue ?? 0,
   });
 
+  if (loading) return <Loader text={t('common:text-loading')} />;
+
   return (
-    <>
-      <div className="mb-8 rounded-lg bg-light p-5 md:p-8">
-        <div className="mb-7 flex items-center justify-between">
-          <PageHeading title={t('text-summary')} />
-        </div>
-        <div className="grid w-full grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <StickerCard
-            titleTransKey="sticker-card-title-rev"
-            // subtitleTransKey="sticker-card-subtitle-rev"
-            icon={<EaringIcon className="h-8 w-8" />}
-            color="#047857"
-            price={total_revenue}
-          />
-          <StickerCard
-            titleTransKey="sticker-card-title-today-refunds"
-            // subtitleTransKey="sticker-card-subtitle-order"
-            icon={<ShoppingIcon className="h-8 w-8" />}
-            color="#865DFF"
-            price={total_refund}
-          />
-          <StickerCard
-            titleTransKey="sticker-card-title-total-shops"
-            icon={<BasketIcon className="h-8 w-8" />}
-            color="#E157A0"
-            price={data?.totalShops}
-          />
-          <StickerCard
-            titleTransKey="sticker-card-title-today-rev"
-            icon={<ChecklistIcon className="h-8 w-8" />}
-            color="#D74EFF"
-            price={todays_revenue}
-          />
-        </div>
+    <motion.div
+      initial={{ opacity: 0, scale: 0.99 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.3 }}
+    >
+      {/* Day-range selector */}
+      <div className="mb-6 flex items-center gap-2">
+        {DAY_OPTIONS.map((d) => (
+          <Button
+            key={d}
+            onClick={() => setDays(d)}
+            variant={days === d ? 'normal' : 'outline'}
+            className="h-8 !px-3 text-sm"
+          >
+            {d === 365 ? '1y' : d === 90 ? '3m' : d === 30 ? '30d' : '7d'}
+          </Button>
+        ))}
+        {error && (
+          <span className="text-sm text-red-500">
+            Analytics unavailable — please try again later.
+          </span>
+        )}
       </div>
 
-      <div className="mb-8 rounded-lg bg-light p-5 md:p-8">
-        <div className="mb-5 items-center justify-between sm:flex md:mb-7">
-          <PageHeading title={t('text-order-status')} />
-          <div className="mt-3.5 inline-flex rounded-full bg-gray-100/80 p-1.5 sm:mt-0">
-            {timeFrame
-              ? timeFrame.map((time) => (
-                  <div key={time.day} className="relative">
-                    <Button
-                      className={cn(
-                        '!focus:ring-0  relative z-10 !h-7 rounded-full !px-2.5 text-sm font-medium text-gray-500',
-                        time.day === activeTimeFrame ? 'text-accent' : '',
-                      )}
-                      type="button"
-                      onClick={() => setActiveTimeFrame(time.day)}
-                      variant="custom"
-                    >
-                      {time.name}
-                    </Button>
-                    {time.day === activeTimeFrame ? (
-                      <motion.div className="absolute bottom-0 left-0 right-0 z-0 h-full rounded-3xl bg-accent/10" />
-                    ) : null}
-                  </div>
-                ))
-              : null}
+      {/* KPI cards */}
+      {analytics && (
+        <>
+          <div className="mb-6 grid w-full grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            <StickerCard
+              titleTransKey="sticker-card-title-rev"
+              icon={<EaringIcon className="h-8 w-8" />}
+              iconBgStyle={{ backgroundColor: '#A9ECF5' }}
+              price={totalRevenue}
+            />
+            <StickerCard
+              titleTransKey="sticker-card-title-total-order"
+              icon={<ShoppingIcon className="h-8 w-8" />}
+              iconBgStyle={{ backgroundColor: '#B798F5' }}
+              price={analytics.totalOrders}
+            />
+            <StickerCard
+              titleTransKey="sticker-card-title-today-rev"
+              icon={<BasketIcon className="h-8 w-8" />}
+              iconBgStyle={{ backgroundColor: '#F5D2C1' }}
+              price={netRevenue}
+            />
+            <StickerCard
+              titleTransKey="sticker-card-title-all-user"
+              icon={<ChecklistIcon className="h-8 w-8" />}
+              iconBgStyle={{ backgroundColor: '#CCEBF7' }}
+              price={analytics.uniqueCustomers}
+            />
           </div>
-        </div>
-        <OrderStatusWidget
-          order={orderDataRange}
-          timeFrame={activeTimeFrame}
-          allowedStatus={['pending', 'processing', 'complete', 'cancel']}
-        />
-      </div>
 
-      {hasAccess(adminAndOwnerOnly, permissions) && (
-        <div className="mb-8 flex w-full flex-wrap md:flex-nowrap">
-          <ColumnChart
-            widgetTitle={t('common:sale-history')}
-            colors={['#6073D4']}
-            series={salesByYear}
-            categories={[
-              t('common:january'),
-              t('common:february'),
-              t('common:march'),
-              t('common:april'),
-              t('common:may'),
-              t('common:june'),
-              t('common:july'),
-              t('common:august'),
-              t('common:september'),
-              t('common:october'),
-              t('common:november'),
-              t('common:december'),
-            ]}
-          />
-        </div>
+          {/* Orders by status */}
+          <div className="mb-6 rounded-lg bg-light p-5">
+            <h3 className="mb-4 text-base font-semibold text-heading">
+              Orders by Status
+            </h3>
+            <OrdersByStatus byStatus={analytics.ordersByStatus} />
+          </div>
+
+          {/* Revenue chart */}
+          {analytics.revenueChart?.length > 0 && (
+            <div className="mb-6 rounded-lg bg-light p-5">
+              <h3 className="mb-4 text-base font-semibold text-heading">
+                Revenue ({days} days)
+              </h3>
+              <RevenueBars points={analytics.revenueChart} />
+              <div className="mt-2 flex justify-between text-xs text-gray-400">
+                <span>{analytics.revenueChart[0]?.date}</span>
+                <span>
+                  {analytics.revenueChart[analytics.revenueChart.length - 1]?.date}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Top products */}
+          {analytics.topProducts?.length > 0 && (
+            <div className="mb-6 rounded-lg bg-light p-5">
+              <h3 className="mb-4 text-base font-semibold text-heading">
+                Top Products
+              </h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border-200">
+                    <th className="pb-2 text-left font-medium text-gray-500">
+                      Product
+                    </th>
+                    <th className="pb-2 text-right font-medium text-gray-500">
+                      Units sold
+                    </th>
+                    <th className="pb-2 text-right font-medium text-gray-500">
+                      Revenue
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.topProducts.map((p: KolshiTopProduct) => (
+                    <tr
+                      key={p.productId}
+                      className="border-b border-border-200/50"
+                    >
+                      <td className="py-2">{p.productName}</td>
+                      <td className="py-2 text-right">{p.totalSold}</td>
+                      <td className="py-2 text-right font-medium text-heading">
+                        {p.revenue.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Avg order value + repeat customer info */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+            <div className="rounded-lg bg-light p-5">
+              <p className="text-xs text-gray-500">Avg Order Value</p>
+              <p className="text-2xl font-bold text-heading">{avgOrder}</p>
+            </div>
+            <div className="rounded-lg bg-light p-5">
+              <p className="text-xs text-gray-500">Repeat Customers</p>
+              <p className="text-2xl font-bold text-heading">
+                {analytics.repeatCustomers}
+              </p>
+            </div>
+            <div className="rounded-lg bg-light p-5">
+              <p className="text-xs text-gray-500">Low-stock Products</p>
+              <p className="text-2xl font-bold text-heading">
+                {analytics.lowStockProducts}
+              </p>
+            </div>
+          </div>
+        </>
       )}
 
-      <div className="grid gap-8 xl:grid-cols-12">
-        <TopRatedProducts
-          products={topRatedProducts}
-          title={'text-most-rated-products'}
-          className="xl:col-span-5 2xl:me-20"
-        />
-        <ProductCountByCategory
-          products={productByCategory}
-          title={'text-most-category-products'}
-          className="xl:col-span-7 2xl:ltr:-ml-20 2xl:rtl:-mr-20"
-        />
-      </div>
-    </>
+      {!analytics && !loading && (
+        <div className="flex min-h-[300px] items-center justify-center rounded-lg bg-light">
+          <p className="text-body">
+            {shopId
+              ? 'No analytics data available for the selected period.'
+              : 'No shop found for your account.'}
+          </p>
+        </div>
+      )}
+    </motion.div>
   );
 };
 
+// ── Root component ────────────────────────────────────────────────────────────
+
 const OwnerDashboard = () => {
   const { permissions } = getAuthCredentials();
-  let permission = hasAccess(adminOnly, permissions);
-
-  return permission ? <ShopList /> : <OwnerShopLayout />;
+  return hasAccess(adminOnly, permissions) ? <ShopList /> : <OwnerShopLayout />;
 };
 
 export default OwnerDashboard;

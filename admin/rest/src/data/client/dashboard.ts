@@ -1,7 +1,14 @@
 import { HttpClient } from '@/data/client/http-client';
 import { API_ENDPOINTS } from '@/data/client/api-endpoints';
 import type { KolshiPageResponse } from '@/utils/pagination';
-import type { Shop, Order, User } from '@/types';
+import type {
+  Shop,
+  Order,
+  User,
+  KolshiShopAnalytics,
+  KolshiSystemStatus,
+  KolshiNotificationStats,
+} from '@/types';
 
 export interface DashboardStats {
   pendingShopsCount: number;
@@ -10,42 +17,51 @@ export interface DashboardStats {
 }
 
 export const dashboardClient = {
-  /**
-   * GET /shops/pending?page=0&size=1
-   * We only need the total count; fetch page 0, size 1 and read `total`.
-   */
+  // ── KPI count queries (page 0, size 1 → read total) ──────────────────────
+
   pendingShopsCount: () =>
     HttpClient.get<KolshiPageResponse<Shop>>(API_ENDPOINTS.NEW_OR_INACTIVE_SHOPS, {
       page: 0,
       size: 1,
     }),
 
-  /**
-   * GET /orders?page=0&size=1 — total order count for the dashboard KPI.
-   */
   ordersCount: () =>
     HttpClient.get<KolshiPageResponse<Order>>(API_ENDPOINTS.ORDERS, {
       page: 0,
       size: 1,
     }),
 
-  /**
-   * GET /users?page=0&size=1 — total user count for the dashboard KPI.
-   */
   usersCount: () =>
     HttpClient.get<KolshiPageResponse<User>>(API_ENDPOINTS.USERS, {
       page: 0,
       size: 1,
     }),
 
-  /**
-   * GET /withdrawals?page=0&size=1&status=PENDING — pending withdrawal count.
-   * Kolshi supports status filter on the withdrawals list.
-   */
   pendingWithdrawalsCount: () =>
     HttpClient.get<KolshiPageResponse<any>>(API_ENDPOINTS.WITHDRAWS, {
       page: 0,
       size: 1,
       status: 'PENDING',
     }),
+
+  // ── Shop analytics ────────────────────────────────────────────────────────
+
+  /** GET /analytics/shops/{shopId}?days=30 */
+  shopAnalytics: (shopId: number | string, days = 30) =>
+    HttpClient.get<KolshiShopAnalytics>(
+      `analytics/shops/${shopId}`,
+      { days },
+    ),
+
+  // ── System status ─────────────────────────────────────────────────────────
+
+  /** GET /system/status — super_admin only. */
+  systemStatus: () =>
+    HttpClient.get<KolshiSystemStatus>(API_ENDPOINTS.SYSTEM_STATUS),
+
+  // ── Admin notification stats ──────────────────────────────────────────────
+
+  /** GET /admin/notifications/stats */
+  notificationStats: () =>
+    HttpClient.get<KolshiNotificationStats>(API_ENDPOINTS.ADMIN_NOTIFICATIONS_STATS),
 };

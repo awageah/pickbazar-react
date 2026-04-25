@@ -1,288 +1,260 @@
+/**
+ * Admin Notifications — A8.
+ *
+ * Three tabs: Failed (J14), Dead-letter (J15), Stats (J16).
+ * Failed notifications have a "Retry" button (J17).
+ */
 import Card from '@/components/common/card';
-import Select from '@/components/ui/select/select';
 import Layout from '@/components/layouts/admin';
-import { useState } from 'react';
-import ErrorMessage from '@/components/ui/error-message';
-import { Routes } from '@/config/routes';
 import Loader from '@/components/ui/loader/loader';
+import ErrorMessage from '@/components/ui/error-message';
+import Button from '@/components/ui/button';
+import PageHeading from '@/components/common/page-heading';
+import Pagination from '@/components/ui/pagination';
+import { adminOnly } from '@/utils/auth-utils';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-import { adminOnly, getAuthCredentials } from '@/utils/auth-utils';
-import { useRouter } from 'next/router';
-import dayjs from 'dayjs';
-import { useOrderQuery } from '@/data/order';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import utc from 'dayjs/plugin/utc';
-import timezone from 'dayjs/plugin/timezone';
 import {
-  useNotifyLogReadMutation,
-  useNotifyLogsQuery,
+  useAdminFailedNotificationsQuery,
+  useAdminDeadLetterQuery,
+  useAdminNotificationStatsQuery,
+  useRetryNotificationMutation,
 } from '@/data/notify-logs';
-import { useMeQuery } from '@/data/user';
-import Avatar from '@/components/common/avatar';
+import { KolshiAdminNotification } from '@/types';
+import { useState } from 'react';
+import dayjs from 'dayjs';
+import Badge from '@/components/ui/badge/badge';
+import { NoDataFound } from '@/components/icons/no-data-found';
 import cn from 'classnames';
-import { ActionMeta } from 'react-select';
-import { SortOrder } from '@/types';
-import NotFound from '@/components/ui/not-found';
-import PageHeading from '@/components/common/page-heading';
 
-dayjs.extend(relativeTime);
-dayjs.extend(utc);
-dayjs.extend(timezone);
+// ── Tab IDs ───────────────────────────────────────────────────────────────────
 
-const NotifyLogItem = ({ item }: any) => {
-  const { t } = useTranslation();
-  const router = useRouter();
-  const { permissions } = getAuthCredentials();
-  const { locale } = useRouter();
+type Tab = 'failed' | 'dead_letter' | 'stats';
 
-  const { mutate: seenNotifyLog, isLoading: creating } =
-    useNotifyLogReadMutation();
+// ── Notification row ─────────────────────────────────────────────────────────
 
-  const { order } = useOrderQuery({
-    // id: item?.notify_type === 'order' ? item?.notify_tracker : '',
-    id: item?.notify_tracker,
-    language: locale!,
-  });
-
-  let notifyLogText = '';
-  switch (item?.notify_type) {
-    case 'order':
-      notifyLogText = 'text-created-new-order';
-      break;
-
-    case 'message':
-      notifyLogText = 'text-sent-new-message';
-      break;
-  }
-
-  const handleClickOnNotification = (value: any) => {
-    seenNotifyLog({ input: value });
-
-    // prepare url for admin & vendor
-    let redirectTo;
-    switch (value?.notify_type) {
-      case 'order':
-        //@ts-ignore
-        const shopURL = order?.shop?.slug;
-        redirectTo = permissions?.includes('super_admin')
-          ? Routes?.order?.details(value?.notify_tracker)
-          : shopURL + Routes?.order?.details(value?.notify_tracker);
-
-        router.push('/' + redirectTo);
-        break;
-
-      case 'message':
-        //@ts-ignore
-        redirectTo = Routes?.message?.details(value?.notify_tracker);
-
-        router.push('/' + redirectTo);
-        break;
-    }
-  };
+function NotificationRow({
+  item,
+  showRetry,
+}: {
+  item: KolshiAdminNotification;
+  showRetry?: boolean;
+}) {
+  const { mutate: retry, isLoading: retrying } = useRetryNotificationMutation();
 
   return (
-    <>
-      <div
-        className={cn(
-          "relative flex cursor-pointer rounded-lg bg-white p-4 border-s-4 before:absolute before:top-1/2 before:h-2.5 before:w-2.5 before:-translate-y-1/2 before:rounded-full before:bg-accent before:opacity-0 before:content-[''] before:end-4 md:before:end-7 xl:p-7",
-          item?.is_read ? 'border-gray-300' : 'border-accent before:opacity-100'
-        )}
-        onClick={() => handleClickOnNotification(item)}
-      >
-        <Avatar
-          name={item?.user?.name}
-          size="lg"
-          src={item?.sender_user?.profile?.avatar?.thumbnail}
-        />
-        <div className="ps-4">
-          <div className="mb-0.5 gap-2 text-[15px]">
-            <span className="font-semibold text-heading">
-              {item?.user?.name}
-            </span>{' '}
-            {t(notifyLogText)}
-            {item?.notify_type !== 'message' ? (
-              <span
-                className={cn(
-                  'inline-block font-medium text-accent hover:text-accent',
-                  item?.is_read ? 'text-gray-500/80' : 'text-accent'
-                )}
-              >
-                #{item?.notify_tracker}
-              </span>
-            ) : (
-              ''
-            )}
-          </div>
-          <span
-            className={cn(
-              'text-sm font-medium',
-              item?.is_read ? 'text-gray-500/80' : 'text-accent'
-            )}
-          >
-            {dayjs(item?.created_at).format('MMM DD, YYYY')} at{' '}
-            {dayjs(item?.created_at).format('hh:mm A')}
-          </span>
+    <div className="flex flex-col gap-1 rounded-lg border border-border-200/60 p-4 hover:bg-gray-50/60">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <p className="font-semibold text-heading">{item.subject}</p>
+          {item.body && (
+            <p className="mt-0.5 line-clamp-2 text-sm text-body">{item.body}</p>
+          )}
+          {item.error_message && (
+            <p className="mt-1 rounded bg-red-50 px-2 py-1 text-xs text-red-600">
+              Error: {item.error_message}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <Badge
+            text={item.type.replace(/_/g, ' ')}
+            color="bg-blue-100 text-blue-600"
+            className="text-xs"
+          />
+          {showRetry && (
+            <Button
+              onClick={() => retry({ id: item.id })}
+              loading={retrying}
+              className="h-7 !px-3 text-xs"
+            >
+              ↺ Retry
+            </Button>
+          )}
         </div>
       </div>
-    </>
-  );
-};
-
-type Props = {
-  showTargetFilter?: boolean;
-  showReadStatusFilter?: boolean;
-  onReadStatusFilter?: (newValue: any, actionMeta: ActionMeta<unknown>) => void;
-  onTargetFilter?: (newValue: any, actionMeta: ActionMeta<unknown>) => void;
-  className?: string;
-};
-
-function NotificationFilter({
-  showTargetFilter,
-  showReadStatusFilter,
-  onReadStatusFilter,
-  onTargetFilter,
-  className,
-}: Props) {
-  const { t } = useTranslation();
-
-  return (
-    <div className={cn('flex w-full', className)}>
-      {showTargetFilter && (
-        <div className="w-full pr-3">
-          <Select
-            options={[
-              {
-                name: 'All',
-                value: '',
-              },
-              {
-                name: 'Order',
-                value: 'order',
-              },
-              {
-                name: 'Messages',
-                value: 'message',
-              },
-            ]}
-            getOptionLabel={(option: any) => option.name}
-            getOptionValue={(option: any) => option.value}
-            placeholder={t('common:filter-by-notification-type')}
-            onChange={onTargetFilter}
-            isClearable={true}
-            defaultValue={[
-              {
-                name: 'All',
-                value: '',
-              },
-            ]}
-          />
-        </div>
-      )}
-
-      {showReadStatusFilter && (
-        <div className="w-full">
-          <Select
-            options={[
-              {
-                name: 'All',
-                value: '',
-              },
-              {
-                name: 'Unread',
-                value: '0',
-              },
-              {
-                name: 'Read',
-                value: '1',
-              },
-            ]}
-            getOptionLabel={(option: any) => option.name}
-            getOptionValue={(option: any) => option.value}
-            placeholder={t('common:filter-by-notification-type')}
-            onChange={onReadStatusFilter}
-            isClearable={true}
-            defaultValue={[
-              {
-                name: 'All',
-                value: '',
-              },
-            ]}
-          />
-        </div>
-      )}
+      <div className="flex items-center gap-3 text-xs text-gray-400">
+        <span>#{item.id}</span>
+        {item.retry_count != null && (
+          <span>Retries: {item.retry_count}</span>
+        )}
+        <span className="ms-auto">
+          {dayjs(item.created_at).format('DD MMM YYYY HH:mm')}
+        </span>
+      </div>
     </div>
   );
 }
 
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+function EmptyState({ label }: { label: string }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col items-center py-12">
+      <NoDataFound className="w-36" />
+      <p className="mt-4 text-base font-semibold text-heading">
+        No {label} notifications
+      </p>
+    </div>
+  );
+}
+
+// ── Stats panel ───────────────────────────────────────────────────────────────
+
+function StatsPanel() {
+  const { stats, loading, error } = useAdminNotificationStatsQuery();
+
+  if (loading) return <Loader text="Loading stats…" />;
+  if (error || !stats) return <ErrorMessage message="Stats unavailable" />;
+
+  return (
+    <div className="grid grid-cols-2 gap-5 sm:grid-cols-4">
+      {(
+        [
+          { label: 'Sent', value: stats.sent, color: 'text-green-600' },
+          { label: 'Pending', value: stats.pending, color: 'text-yellow-600' },
+          { label: 'Failed', value: stats.failed, color: 'text-red-500' },
+          { label: 'Dead-letter', value: stats.dead_letter, color: 'text-red-800' },
+        ] as const
+      ).map(({ label, value, color }) => (
+        <Card key={label} className="flex flex-col items-center py-6">
+          <p className={`text-4xl font-bold ${color}`}>{value}</p>
+          <p className="mt-1 text-sm text-gray-500">{label}</p>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function NotifyLogsPage() {
   const { t } = useTranslation();
-  const { locale } = useRouter();
-  const [target, setTarget] = useState<string>();
-  const [page, setPage] = useState(1);
-  const [readStatus, setReadStatus] = useState<string>();
-  const { data, isLoading: loading, error } = useMeQuery();
+  const [activeTab, setActiveTab] = useState<Tab>('failed');
+  const [failedPage, setFailedPage] = useState(1);
+  const [dlPage, setDlPage] = useState(1);
 
   const {
-    notifyLogs,
-    loading: loadingLogs,
-    paginatorInfo,
-    error: errorLogs,
-  } = useNotifyLogsQuery({
-    receiver: data?.id,
-    notify_type: target,
-    language: locale,
-    limit: 30,
-    orderBy: 'created_at',
-    sortedBy: SortOrder.Desc,
-    page,
-  });
+    notifications: failedNotifs,
+    paginatorInfo: failedPaginator,
+    loading: loadingFailed,
+    error: errorFailed,
+  } = useAdminFailedNotificationsQuery(
+    { page: failedPage, limit: 20 },
+    { enabled: activeTab === 'failed' },
+  );
 
-  if (loadingLogs) return <Loader text={t('common:text-loading')} />;
-  if (error) return <ErrorMessage message={error.message} />;
+  const {
+    notifications: dlNotifs,
+    paginatorInfo: dlPaginator,
+    loading: loadingDl,
+    error: errorDl,
+  } = useAdminDeadLetterQuery(
+    { page: dlPage, limit: 20 },
+    { enabled: activeTab === 'dead_letter' },
+  );
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'failed', label: 'Failed' },
+    { id: 'dead_letter', label: 'Dead-letter' },
+    { id: 'stats', label: 'Stats' },
+  ];
 
   return (
     <>
-      <Card className="mb-8 flex flex-col items-center md:flex-row">
-        <div className="mb-4 md:mb-0 md:w-1/4">
-          <PageHeading title={t('form:form-title-all-notifications')} />
-        </div>
-
-        <div className="flex w-full flex-col items-center space-y-4 ms-auto md:w-2/3 md:flex-row md:space-y-0 xl:w-3/4 2xl:w-2/5">
-          <NotificationFilter
-            className="md:ms-6"
-            onTargetFilter={(target: any) => {
-              setTarget(target?.value!);
-              setPage(1);
-            }}
-            onReadStatusFilter={(readStatus: any) => {
-              setReadStatus(readStatus?.value!);
-              setPage(1);
-            }}
-            showTargetFilter
-            // showReadStatusFilter
-          />
-        </div>
+      {/* Header */}
+      <Card className="mb-6 flex items-center">
+        <PageHeading title={t('form:form-title-all-notifications')} />
       </Card>
 
-      <div className={`space-y-3.5`}>
-        {notifyLogs ? (
-          notifyLogs?.map((item: any) => {
-            return <NotifyLogItem item={item} key={item.id} />;
-          })
-        ) : (
-          <NotFound text="text-no-log-found" className="mx-auto w-7/12" />
-        )}
+      {/* Tabs */}
+      <div className="mb-6 flex border-b border-border-200">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              'px-5 py-3 text-sm font-medium transition-colors',
+              activeTab === tab.id
+                ? 'border-b-2 border-accent text-accent'
+                : 'text-gray-500 hover:text-heading',
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
+
+      {/* Tab content */}
+      {activeTab === 'failed' && (
+        <>
+          {loadingFailed ? (
+            <Loader text={t('common:text-loading')} />
+          ) : errorFailed ? (
+            <ErrorMessage message={errorFailed.message} />
+          ) : failedNotifs.length === 0 ? (
+            <EmptyState label="failed" />
+          ) : (
+            <>
+              <div className="space-y-3">
+                {failedNotifs.map((n: KolshiAdminNotification) => (
+                  <NotificationRow key={n.id} item={n} showRetry />
+                ))}
+              </div>
+              {!!failedPaginator?.total && (
+                <div className="mt-6 flex justify-end">
+                  <Pagination
+                    total={failedPaginator.total}
+                    current={failedPaginator.currentPage}
+                    pageSize={failedPaginator.perPage}
+                    onChange={setFailedPage}
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {activeTab === 'dead_letter' && (
+        <>
+          {loadingDl ? (
+            <Loader text={t('common:text-loading')} />
+          ) : errorDl ? (
+            <ErrorMessage message={errorDl.message} />
+          ) : dlNotifs.length === 0 ? (
+            <EmptyState label="dead-letter" />
+          ) : (
+            <>
+              <div className="space-y-3">
+                {dlNotifs.map((n: KolshiAdminNotification) => (
+                  <NotificationRow key={n.id} item={n} showRetry={false} />
+                ))}
+              </div>
+              {!!dlPaginator?.total && (
+                <div className="mt-6 flex justify-end">
+                  <Pagination
+                    total={dlPaginator.total}
+                    current={dlPaginator.currentPage}
+                    pageSize={dlPaginator.perPage}
+                    onChange={setDlPage}
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {activeTab === 'stats' && <StatsPanel />}
     </>
   );
 }
 
-NotifyLogsPage.authenticate = {
-  permissions: adminOnly,
-};
-
+NotifyLogsPage.authenticate = { permissions: adminOnly };
 NotifyLogsPage.Layout = Layout;
+
 export const getStaticProps = async ({ locale }: any) => ({
   props: {
     ...(await serverSideTranslations(locale, ['form', 'common', 'table'])),

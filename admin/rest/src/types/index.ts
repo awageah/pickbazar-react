@@ -1262,6 +1262,111 @@ export interface SettingsInput {
   options?: SettingsOptionsInput;
 }
 
+// ── Kolshi dynamic platform settings (J3–J9) ────────────────────────────────
+
+export type SettingCategory =
+  | 'FINANCIAL'
+  | 'PLATFORM'
+  | 'EMAIL'
+  | 'SECURITY'
+  | 'DELIVERY';
+
+export type SettingValueType =
+  | 'STRING'
+  | 'INTEGER'
+  | 'DECIMAL'
+  | 'BOOLEAN'
+  | 'JSON';
+
+export interface KolshiSetting {
+  setting_key: string;
+  setting_value: string;
+  value_type: SettingValueType;
+  description?: string;
+  category: SettingCategory;
+  is_system?: boolean;
+}
+
+export interface KolshiSettingsPage {
+  data: KolshiSetting[];
+  total: number;
+  page: number;
+  per_page: number;
+  last_page: number;
+}
+
+export interface KolshiCacheStats {
+  size: number;
+  hitRate?: number;
+  [key: string]: any;
+}
+
+// ── Kolshi shop analytics (I1) ───────────────────────────────────────────────
+
+export interface KolshiTopProduct {
+  productId: number;
+  productName: string;
+  totalSold: number;
+  revenue: number;
+}
+
+export interface KolshiRevenuePoint {
+  date: string;
+  revenue: number;
+}
+
+export interface KolshiShopAnalytics {
+  totalRevenue: number;
+  totalCommission: number;
+  netRevenue: number;
+  totalOrders: number;
+  completedOrders: number;
+  pendingOrders: number;
+  cancelledOrders: number;
+  averageOrderValue: number;
+  uniqueCustomers: number;
+  repeatCustomers: number;
+  topProducts: KolshiTopProduct[];
+  lowStockProducts: number;
+  revenueChart: KolshiRevenuePoint[];
+  ordersByStatus: Record<string, number>;
+}
+
+// ── System status (J1) ───────────────────────────────────────────────────────
+
+export interface KolshiSystemStatus {
+  application: {
+    name: string;
+    version: string;
+    phase: string;
+    environment: string;
+  };
+  timestamp: string;
+  health: Record<string, { status: string; details?: Record<string, any> }>;
+  overall_status: 'HEALTHY' | 'DEGRADED' | 'DOWN';
+}
+
+// ── Admin notification (J14–J17) ─────────────────────────────────────────────
+
+export interface KolshiAdminNotification {
+  id: number;
+  recipient_id?: number;
+  type: string;
+  subject: string;
+  body?: string;
+  status: string;
+  created_at: string;
+  error_message?: string;
+  retry_count?: number;
+}
+
+export interface KolshiNotificationStats {
+  sent: number;
+  pending: number;
+  failed: number;
+  dead_letter: number;
+}
+
 export interface Tax {
   id?: string;
   name?: string;
