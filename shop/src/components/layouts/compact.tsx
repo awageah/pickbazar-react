@@ -72,7 +72,7 @@ export default function CompactLayout({ variables }: HomePageProps) {
               variables={{
                 ...variables.products,
                 sortedBy: 'DESC',
-                orderBy: 'created_at',
+                orderBy: 'createdAt',
               }}
             />
           </SectionBlock>

@@ -21,7 +21,7 @@ export default function NewShopPage() {
   const { shops, paginatorInfo, loading, error } = usePendingShopsQuery({
     search: searchTerm,
     page,
-    size: 10,
+    limit: 10,
     orderBy: column || undefined,
     sortedBy: order,
   } as any);

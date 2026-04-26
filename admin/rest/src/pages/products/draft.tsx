@@ -24,7 +24,7 @@ export default function DraftProductPage() {
   const { data: me } = useMeQuery();
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
-  const [orderBy, setOrder] = useState('created_at');
+  const [orderBy, setOrder] = useState('createdAt');
   const [sortedBy, setColumn] = useState<SortOrder>(SortOrder.Desc);
   const [category, setCategory] = useState('');
   const [visible, setVisible] = useState(false);

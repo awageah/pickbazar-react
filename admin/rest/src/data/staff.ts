@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from 'react-query';
-import { toPaginatorInfo } from '@/utils/pagination';
+import { mapPaginatorData } from '@/utils/data-mappers';
 import { API_ENDPOINTS } from './client/api-endpoints';
 import { staffClient, StaffListParams } from './client/staff';
 import { useRouter } from 'next/router';
@@ -28,7 +28,7 @@ export const useStaffsQuery = (
 
   return {
     staffs: data?.data ?? [],
-    paginatorInfo: toPaginatorInfo(data ?? null),
+    paginatorInfo: mapPaginatorData(data),
     error,
     loading: isLoading,
   };

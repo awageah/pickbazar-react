@@ -23,7 +23,7 @@ export default function ProductsPage() {
   const [page, setPage] = useState(1);
   const { t } = useTranslation();
   const { locale } = useRouter();
-  const [orderBy, setOrder] = useState('created_at');
+  const [orderBy, setOrder] = useState('createdAt');
   const [sortedBy, setColumn] = useState<SortOrder>(SortOrder.Desc);
   const [visible, setVisible] = useState(true);
 

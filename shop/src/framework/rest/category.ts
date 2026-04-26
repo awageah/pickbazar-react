@@ -28,8 +28,9 @@ export function useCategories(options?: Partial<CategoryQueryOptions>) {
         Object.assign({}, queryKey[1] as any, pageParam),
       ) as Promise<CategoryPaginator>,
     {
-      getNextPageParam: ({ current_page, last_page }) =>
-        last_page > current_page && { page: current_page + 1 },
+      // Raw Kolshi response (via HttpClient.get) uses `page`/`lastPage`.
+      getNextPageParam: ({ page: currentPage, lastPage: totalPages }: any) =>
+        totalPages > currentPage ? { page: currentPage + 1 } : undefined,
     },
   );
 

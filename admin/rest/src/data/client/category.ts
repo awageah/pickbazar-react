@@ -21,7 +21,7 @@ export const categoryClient = {
       search: name,
       ...rest,
       page,
-      size: limit,
+      limit,
     }),
 
   /** GET /categories/slug/{slug} */

@@ -16,7 +16,7 @@ export default function AllShopPage() {
   const [page, setPage] = useState(1);
   const { shops, paginatorInfo, loading, error } = useShopsQuery({
     search: searchTerm,
-    size: 10,
+    limit: 10,
     page,
   });
   if (loading) return <Loader text={t('common:text-loading')} />;

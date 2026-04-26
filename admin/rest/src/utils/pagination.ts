@@ -59,8 +59,9 @@ export function toSpringPageParams(
   };
 
   if (orderBy) {
-    out.sort = orderBy;
-    if (sortedBy) out.direction = sortedBy.toUpperCase() as 'ASC' | 'DESC';
+    // Spring Data Web reads sort as "field,DIRECTION" — the separate `direction`
+    // param is not part of the standard PageableHandlerMethodArgumentResolver.
+    out.sort = sortedBy ? `${orderBy},${sortedBy.toUpperCase()}` : orderBy;
   }
 
   return out;
@@ -121,11 +122,11 @@ export interface SortMapping {
 }
 
 const SORT_MAP: Record<TemplateSort, SortMapping> = {
-  newest: { sort: 'created_at', direction: 'DESC' },
-  oldest: { sort: 'created_at', direction: 'ASC' },
+  newest: { sort: 'createdAt', direction: 'DESC' },
+  oldest: { sort: 'createdAt', direction: 'ASC' },
   price_asc: { sort: 'price', direction: 'ASC' },
   price_desc: { sort: 'price', direction: 'DESC' },
-  rating_desc: { sort: 'rating', direction: 'DESC' },
+  rating_desc: { sort: 'averageRating', direction: 'DESC' },
   name_asc: { sort: 'name', direction: 'ASC' },
   name_desc: { sort: 'name', direction: 'DESC' },
 };

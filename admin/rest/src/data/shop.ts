@@ -4,7 +4,7 @@ import { API_ENDPOINTS } from '@/data/client/api-endpoints';
 import { shopClient, ShopListParams } from '@/data/client/shop';
 import { Shop, ShopInput } from '@/types';
 import { getAuthCredentials, adminOnly, hasAccess } from '@/utils/auth-utils';
-import { toPaginatorInfo } from '@/utils/pagination';
+import { mapPaginatorData } from '@/utils/data-mappers';
 import { useTranslation } from 'next-i18next';
 import Router, { useRouter } from 'next/router';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
@@ -27,7 +27,7 @@ export const useShopsQuery = (params: ShopListParams = {}) => {
   );
   return {
     shops: data?.data ?? [],
-    paginatorInfo: toPaginatorInfo(data ?? null),
+    paginatorInfo: mapPaginatorData(data),
     error,
     loading: isLoading,
   };
@@ -42,7 +42,7 @@ export const usePendingShopsQuery = (params: ShopListParams = {}) => {
   );
   return {
     shops: data?.data ?? [],
-    paginatorInfo: toPaginatorInfo(data ?? null),
+    paginatorInfo: mapPaginatorData(data),
     error,
     loading: isLoading,
   };
@@ -60,7 +60,7 @@ export const useMyShopsQuery = (params: ShopListParams = {}) => {
   );
   return {
     shops: data?.data ?? [],
-    paginatorInfo: toPaginatorInfo(data ?? null),
+    paginatorInfo: mapPaginatorData(data),
     error,
     loading: isLoading,
   };

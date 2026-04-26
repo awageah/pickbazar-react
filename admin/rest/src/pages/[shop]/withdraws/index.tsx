@@ -27,7 +27,7 @@ export default function WithdrawsPage() {
   const { data: me } = useMeQuery();
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
-  const [orderBy, setOrder] = useState('created_at');
+  const [orderBy, setOrder] = useState('createdAt');
   const [sortedBy, setColumn] = useState<SortOrder>(SortOrder.Desc);
   const {
     query: { shop },

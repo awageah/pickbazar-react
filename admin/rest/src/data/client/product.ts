@@ -36,7 +36,7 @@ export const productClient = {
       categoryId: categories,
       ...rest,
       page,
-      size: limit,
+      limit,
     }),
 
   /** GET /products/slug/{slug} */

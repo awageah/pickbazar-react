@@ -12,14 +12,14 @@ export const notifyClient = {
   failed: ({ page = 1, limit = 20 }: { page?: number; limit?: number } = {}) =>
     HttpClient.getPaginated<KolshiAdminNotification>(
       API_ENDPOINTS.ADMIN_NOTIFICATIONS_FAILED,
-      { page, size: limit },
+      { page, limit },
     ),
 
   /** GET /admin/notifications/dead-letter — paginated dead-letter queue. */
   deadLetter: ({ page = 1, limit = 20 }: { page?: number; limit?: number } = {}) =>
     HttpClient.getPaginated<KolshiAdminNotification>(
       API_ENDPOINTS.ADMIN_NOTIFICATIONS_DEAD_LETTER,
-      { page, size: limit },
+      { page, limit },
     ),
 
   /** GET /admin/notifications/stats */
@@ -36,7 +36,7 @@ export const notifyClient = {
   paginated: ({ page = 1, limit = 20 }: { page?: number; limit?: number } = {}) =>
     HttpClient.getPaginated<KolshiAdminNotification>(
       API_ENDPOINTS.NOTIFY_LOGS,
-      { page, size: limit },
+      { page, limit },
     ),
 
   /** @deprecated no-op stubs kept for compile compat */

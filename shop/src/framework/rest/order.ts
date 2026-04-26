@@ -47,8 +47,10 @@ export function useOrders(
     ({ queryKey, pageParam }) =>
       client.orders.all(Object.assign({}, queryKey[1], pageParam)),
     {
-      getNextPageParam: ({ current_page, last_page }) =>
-        last_page > current_page && { page: current_page + 1 },
+      // The raw Kolshi response (via HttpClient.get, not getPaginated) uses
+      // `page` and `lastPage` — not the template's `current_page`/`last_page`.
+      getNextPageParam: ({ page: currentPage, lastPage: totalPages }: any) =>
+        totalPages > currentPage ? { page: currentPage + 1 } : undefined,
       refetchOnWindowFocus: false,
     },
   );

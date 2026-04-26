@@ -17,7 +17,7 @@ export default function VendorStaffsPage() {
   const [page, setPage] = useState(1);
   const { t } = useTranslation();
 
-  const [orderBy, setOrder] = useState('created_at');
+  const [orderBy, setOrder] = useState('createdAt');
   const [sortedBy, setColumn] = useState<SortOrder>(SortOrder.Desc);
 
   const { allStaffs, paginatorInfo, loading, error } = useAllStaffsQuery({

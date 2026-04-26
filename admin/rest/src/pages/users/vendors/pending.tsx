@@ -15,7 +15,7 @@ export default function PendingVendors() {
   const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
-  const [orderBy, setOrder] = useState('created_at');
+  const [orderBy, setOrder] = useState('createdAt');
   const [sortedBy, setColumn] = useState<SortOrder>(SortOrder.Desc);
 
   const { vendors, paginatorInfo, loading, error } = useVendorsQuery({

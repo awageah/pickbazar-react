@@ -39,7 +39,7 @@ export const orderClient = {
       shopId: shop_id,
       ...rest,
       page,
-      size: limit,
+      limit,
     }),
 
   /** GET /orders/{id} */

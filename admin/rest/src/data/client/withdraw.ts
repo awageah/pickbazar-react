@@ -13,7 +13,7 @@ export const withdrawClient = {
     HttpClient.getPaginated<Withdraw>(API_ENDPOINTS.WITHDRAWS, {
       shopId: shop_id,
       page,
-      size: limit,
+      limit,
       ...rest,
     }),
 
@@ -21,7 +21,7 @@ export const withdrawClient = {
   paginatedPending: ({ page = 1, limit = 10 }: { page?: number; limit?: number } = {}) =>
     HttpClient.getPaginated<Withdraw>(API_ENDPOINTS.ADMIN_WITHDRAWALS_PENDING, {
       page,
-      size: limit,
+      limit,
     }),
 
   /** GET /withdrawals/{id} */

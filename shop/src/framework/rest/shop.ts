@@ -22,8 +22,9 @@ export function useShops(options?: Partial<ShopQueryOptions>) {
     ({ queryKey, pageParam }) =>
       client.shops.all(Object.assign({}, queryKey[1] as any, pageParam)),
     {
-      getNextPageParam: ({ current_page, last_page }) =>
-        last_page > current_page && { page: current_page + 1 },
+      // Raw Kolshi response (via HttpClient.get) uses `page`/`lastPage`.
+      getNextPageParam: ({ page: currentPage, lastPage: totalPages }: any) =>
+        totalPages > currentPage ? { page: currentPage + 1 } : undefined,
     },
   );
 
@@ -74,8 +75,9 @@ export function useShopSearch(
       }),
     {
       enabled: Boolean(term && term.length > 0),
-      getNextPageParam: ({ current_page, last_page }) =>
-        last_page > current_page && { page: current_page + 1 },
+      // Raw Kolshi response (via HttpClient.get) uses `page`/`lastPage`.
+      getNextPageParam: ({ page: currentPage, lastPage: totalPages }: any) =>
+        totalPages > currentPage ? { page: currentPage + 1 } : undefined,
     },
   );
 }

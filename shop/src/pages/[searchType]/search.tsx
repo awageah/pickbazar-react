@@ -41,7 +41,7 @@ export default function SearchPage() {
     hasMore,
   } = useProducts({
     limit: PRODUCTS_PER_PAGE,
-    orderBy: 'created_at',
+    orderBy: 'createdAt',
     sortedBy: 'DESC',
     ...(query?.category && { categories: query?.category }),
     ...(searchType && { type: searchType }),

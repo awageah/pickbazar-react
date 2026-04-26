@@ -18,13 +18,13 @@ export const reviewClient = {
     if (!productId) {
       return HttpClient.getPaginated<Review>(API_ENDPOINTS.REVIEWS, {
         page,
-        size: limit,
+        limit,
         ...rest,
       });
     }
     return HttpClient.getPaginated<Review>(
       `${API_ENDPOINTS.REVIEWS}/product/${productId}`,
-      { page, size: limit, ...rest },
+      { page, limit, ...rest },
     );
   },
 
@@ -39,13 +39,13 @@ export const reviewClient = {
     if (product_id) {
       return HttpClient.getPaginated<Review>(
         `${API_ENDPOINTS.REVIEWS}/product/${product_id}`,
-        { page, size: limit, ...rest },
+        { page, limit, ...rest },
       );
     }
     return HttpClient.getPaginated<Review>(API_ENDPOINTS.REVIEWS, {
       shopId: shop_id,
       page,
-      size: limit,
+      limit,
       ...rest,
     });
   },

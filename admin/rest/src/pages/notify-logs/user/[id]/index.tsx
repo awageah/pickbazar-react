@@ -202,7 +202,7 @@ export default function NotifyLogsPageForVendor() {
     notify_type: target,
     language: locale,
     limit: 30,
-    orderBy: 'created_at',
+    orderBy: 'createdAt',
     sortedBy: SortOrder.Desc,
     page,
   });

@@ -13,7 +13,7 @@ export const couponClient = {
     HttpClient.getPaginated<Coupon>(API_ENDPOINTS.COUPONS, {
       search: code,
       page,
-      size: limit,
+      limit,
       ...rest,
     }),
 
@@ -39,7 +39,7 @@ export const couponClient = {
 
   /** GET /coupons/{id}/usages — admin usage history. */
   getUsages: (id: string | number, page = 1, limit = 20) =>
-    HttpClient.getPaginated<any>(`coupons/${id}/usages`, { page, size: limit }),
+    HttpClient.getPaginated<any>(`coupons/${id}/usages`, { page, limit }),
 
   /** POST /coupons/validate — verify coupon against an order amount. */
   verify: ({ code, orderAmount }: { code: string; orderAmount?: number }) =>

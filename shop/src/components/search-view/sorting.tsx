@@ -24,8 +24,8 @@ const plans: Plan[] = [
     id: '1',
     key: 'sorting',
     label: 'Newest',
-    value: 'created_at',
-    orderBy: 'created_at',
+    value: 'createdAt',
+    orderBy: 'createdAt',
     sortedBy: 'DESC',
   },
   {
