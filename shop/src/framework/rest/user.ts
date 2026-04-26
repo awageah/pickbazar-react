@@ -92,8 +92,6 @@ export function useRegister() {
       setAuthCredentials(data);
       setAuthorized(true);
       closeModal();
-      // Registration always requires email verification before most actions.
-      openModal('FORGOT_VIEW');
       toast.success(t('text-registration-success-verify-email'));
     },
     onError: (err) => {

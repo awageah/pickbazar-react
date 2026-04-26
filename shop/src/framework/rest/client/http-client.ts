@@ -91,9 +91,12 @@ Axios.interceptors.response.use(
     if (status === 401 && !redirecting) {
       redirecting = true;
       Cookies.remove(AUTH_TOKEN_KEY);
-      Router.replace(Routes.home).finally(() => {
-        redirecting = false;
-      });
+      // `?auth=expired` is picked up by AuthExpiredHandler in layout.tsx which
+      // opens the LOGIN_VIEW modal. We can't call openModal() here because axios
+      // interceptors run outside the React tree.
+      Router.replace({ pathname: Routes.home, query: { auth: 'expired' } }).finally(
+        () => { redirecting = false; },
+      );
     }
     return Promise.reject(error);
   },

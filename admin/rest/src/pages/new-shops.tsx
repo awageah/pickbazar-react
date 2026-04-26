@@ -10,16 +10,21 @@ import Search from '@/components/common/search';
 import { adminOnly } from '@/utils/auth-utils';
 import { usePendingShopsQuery } from '@/data/shop';
 import PageHeading from '@/components/common/page-heading';
+import { SortOrder } from '@/types';
 
 export default function NewShopPage() {
   const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
+  const [order, setOrder] = useState<SortOrder>(SortOrder.Desc);
+  const [column, setColumn] = useState<string>('created_at');
   const { shops, paginatorInfo, loading, error } = usePendingShopsQuery({
     search: searchTerm,
     page,
     size: 10,
-  });
+    orderBy: column || undefined,
+    sortedBy: order,
+  } as any);
 
   if (loading) return <Loader text={t('common:text-loading')} />;
   if (error) return <ErrorMessage message={error.message} />;

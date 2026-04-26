@@ -16,7 +16,9 @@ import {
   useOrderHistoryQuery,
   useOrderPaymentQuery,
   useRefundMutation,
+  useUpdateOrderStatusMutation,
 } from '@/data/order';
+import Select from '@/components/ui/select/select';
 import { NoDataFound } from '@/components/icons/no-data-found';
 import { siteSettings } from '@/settings/site.settings';
 import { OrderStatus, PaymentStatus, KolshiOrderItem } from '@/types';
@@ -32,6 +34,15 @@ import dayjs from 'dayjs';
 import { getAuthCredentials } from '@/utils/auth-utils';
 import { SUPER_ADMIN } from '@/utils/constants';
 import { adminOwnerAndStaffOnly } from '@/utils/auth-utils';
+
+const ORDER_STATUS_OPTIONS = [
+  { label: 'Pending', value: 'ORDER_PENDING' },
+  { label: 'Processing', value: 'ORDER_PROCESSING' },
+  { label: 'Out for Delivery', value: 'ORDER_OUT_FOR_DELIVERY' },
+  { label: 'Completed', value: 'ORDER_COMPLETED' },
+  { label: 'Cancelled', value: 'ORDER_CANCELLED' },
+  { label: 'Failed', value: 'ORDER_FAILED' },
+];
 
 // ── Address helper ────────────────────────────────────────────────────────────
 
@@ -59,6 +70,7 @@ export default function OrderDetailsPage() {
   // ── Mutations ─────────────────────────────────────────────────────────────
   const { mutate: advanceStatus, isLoading: advancing } = useAdvanceOrderStatusMutation();
   const { mutate: cancelOrder, isLoading: cancelling } = useCancelOrderMutation();
+  const { mutate: overrideStatus, isLoading: overriding } = useUpdateOrderStatusMutation();
   const { mutate: addNote, isLoading: addingNote } = useAddOrderNoteMutation();
   const { mutate: deleteNote } = useDeleteOrderNoteMutation();
   const { mutate: refund, isLoading: refunding } = useRefundMutation();
@@ -248,6 +260,32 @@ export default function OrderDetailsPage() {
               <Button variant="outline" onClick={() => setShowRefundForm(false)}>
                 Cancel
               </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Super-admin status override ──────────────────────────── */}
+        {isSuperAdmin && (
+          <div className="mb-6 rounded border border-border-200 bg-gray-50 p-4">
+            <label className="mb-2 block text-sm font-medium text-body-dark">
+              {t('form:text-override-status', {
+                defaultValue: 'Override Order Status',
+              })}
+            </label>
+            <div className="max-w-xs">
+              <Select
+                isDisabled={overriding}
+                options={ORDER_STATUS_OPTIONS}
+                value={
+                  ORDER_STATUS_OPTIONS.find((o) => o.value === currentStatus) ??
+                  null
+                }
+                onChange={(selected: any) => {
+                  if (selected?.value && selected.value !== currentStatus) {
+                    overrideStatus({ id: order.id, status: selected.value });
+                  }
+                }}
+              />
             </div>
           </div>
         )}

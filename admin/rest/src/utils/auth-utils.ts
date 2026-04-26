@@ -21,7 +21,7 @@ const AUTH_TOKEN_KEY =
 /**
  * Writes the full Kolshi `AuthResponse` into the `AUTH_CRED` cookie.
  *
- * `expires_in` is in seconds (Kolshi backend default: 604 800 = 7 days).
+ * `expires_in` is in **milliseconds** (backend returns 86 400 000 = 24 h).
  * When present it drives the cookie's `expires` attribute so the browser
  * naturally evicts the credential; when absent the cookie is session-lived.
  *
@@ -36,7 +36,8 @@ export function setAuthCredentials(
 ): void {
   const options: Cookie.CookieAttributes = { sameSite: 'Lax' };
   if (expires_in && expires_in > 0) {
-    options.expires = expires_in / 86_400; // js-cookie expects days
+    // expires_in is milliseconds; js-cookie expects fractional days
+    options.expires = expires_in / (1_000 * 60 * 60 * 24);
   }
   Cookie.set(
     AUTH_TOKEN_KEY,

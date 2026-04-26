@@ -19,6 +19,7 @@ import { Withdraw, MappedPaginatorInfo } from '@/types';
 import Image from 'next/image';
 import { siteSettings } from '@/settings/site.settings';
 import { NoDataFound } from '@/components/icons/no-data-found';
+import Button from '@/components/ui/button';
 
 type IProps = {
   withdraws: Withdraw[] | undefined;
@@ -26,16 +27,26 @@ type IProps = {
   onPagination: (current: number) => void;
   onSort?: (current: any) => void;
   onOrder?: (current: string) => void;
+  onApprove?: (id: string | number) => void;
+  onReject?: (id: string | number, reason: string) => void;
 };
 
 const WithdrawList = ({
   withdraws,
   paginatorInfo,
   onPagination,
+  onSort,
+  onOrder,
+  onApprove,
+  onReject,
 }: IProps) => {
   const { t } = useTranslation();
   const { alignLeft, alignRight } = useIsRTL();
   const router = useRouter();
+
+  // Tracks which row's reject textarea is open and its current reason text.
+  const [rejectingId, setRejectingId] = useState<string | number | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const renderStatusBadge = (status: string) => {
     switch (status.toUpperCase()) {
@@ -87,18 +98,19 @@ const WithdrawList = ({
 
   const onHeaderClick = (column: string | null) => ({
     onClick: () => {
-      onSort((currentSortDirection: SortOrder) =>
-        currentSortDirection === SortOrder.Desc ? SortOrder.Asc : SortOrder.Desc
-      );
-      onOrder(column!);
+      const nextSort =
+        sortingObj.sort === SortOrder.Desc ? SortOrder.Asc : SortOrder.Desc;
 
-      setSortingObj({
-        sort:
-          sortingObj.sort === SortOrder.Desc ? SortOrder.Asc : SortOrder.Desc,
-        column: column,
-      });
+      // Optional callbacks — guard against callers that omit them.
+      onSort?.(nextSort);
+      onOrder?.(column!);
+
+      setSortingObj({ sort: nextSort, column });
     },
   });
+
+  const { permissions } = getAuthCredentials();
+  const isAdmin = hasAccess(adminOnly, permissions);
 
   let columns = [
     {
@@ -216,30 +228,95 @@ const WithdrawList = ({
       onHeaderCell: () => onHeaderClick('status'),
       render: (status: string) => renderStatusBadge(status),
     },
-
     {
       title: t('table:table-item-actions'),
       dataIndex: 'id',
       key: 'actions',
       align: alignRight,
-      width: 120,
-      render: (id: string) => {
-        const { permissions } = getAuthCredentials();
-        if (hasAccess(adminOnly, permissions)) {
+      width: onApprove ? 220 : 120,
+      render: (id: string, record: Withdraw) => {
+        if (!isAdmin) return null;
+
+        const isPending = (record as any).status?.toUpperCase() === 'PENDING';
+
+        // Inline approve/reject only for PENDING rows when callbacks provided.
+        if (isPending && (onApprove || onReject)) {
+          const isRejectOpen = rejectingId === id;
           return (
-            <ActionButtons
-              detailsUrl={`${Routes.withdraw.list}/${id}`}
-              id={id}
-            />
+            <div className="flex flex-col gap-1">
+              <div className="flex gap-2 justify-end">
+                {onApprove && (
+                  <Button
+                    size="small"
+                    onClick={() => onApprove(id)}
+                  >
+                    {t('common:text-approve', { defaultValue: 'Approve' })}
+                  </Button>
+                )}
+                {onReject && !isRejectOpen && (
+                  <Button
+                    size="small"
+                    variant="outline"
+                    onClick={() => {
+                      setRejectingId(id);
+                      setRejectReason('');
+                    }}
+                  >
+                    {t('common:text-reject', { defaultValue: 'Reject' })}
+                  </Button>
+                )}
+              </div>
+              {isRejectOpen && (
+                <div className="flex flex-col gap-1 mt-1">
+                  <textarea
+                    rows={2}
+                    className="w-full rounded border border-border-200 p-1 text-xs"
+                    placeholder={t('common:text-reject-reason', {
+                      defaultValue: 'Reason (min 10 chars)',
+                    })}
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                  />
+                  <div className="flex gap-1 justify-end">
+                    <Button
+                      size="small"
+                      disabled={rejectReason.trim().length < 10}
+                      onClick={() => {
+                        onReject!(id, rejectReason.trim());
+                        setRejectingId(null);
+                        setRejectReason('');
+                      }}
+                    >
+                      {t('common:text-confirm', { defaultValue: 'Confirm' })}
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outline"
+                      onClick={() => setRejectingId(null)}
+                    >
+                      {t('common:text-cancel', { defaultValue: 'Cancel' })}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           );
         }
-        return null;
+
+        return (
+          <ActionButtons
+            detailsUrl={`${Routes.withdraw.list}/${id}`}
+            id={id}
+          />
+        );
       },
     },
   ];
+
   if (router?.query?.shop) {
     columns = columns?.filter((column) => column?.key !== 'actions');
   }
+
   return (
     <>
       <div className="mb-6 overflow-hidden rounded shadow">

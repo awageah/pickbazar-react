@@ -1,4 +1,5 @@
 import type { NextPageWithLayout } from '@/types';
+import type { RatingCount } from '@/types';
 import type { InferGetStaticPropsType } from 'next';
 import { getLayout } from '@/components/layouts/layout';
 import { AttributesProvider } from '@/components/products/details/attributes.context';
@@ -8,6 +9,8 @@ import AverageRatings from '@/components/reviews/average-ratings';
 import ProductReviews from '@/components/reviews/product-reviews';
 import isEmpty from 'lodash/isEmpty';
 import dynamic from 'next/dynamic';
+import { useReviewSummary } from '@/framework/rest/review';
+import { useRelatedProducts } from '@/framework/rest/product';
 
 import { getStaticPaths, getStaticProps } from '@/framework/product.ssr';
 export { getStaticPaths, getStaticProps };
@@ -19,6 +22,14 @@ export { getStaticPaths, getStaticProps };
  * Q&A endpoints (decision log I.2 Coming Soon); the feature has been
  * pulled from the PDP until a backend ships. Reviews and ratings remain
  * fully wired.
+ *
+ * FIX 11A — `useReviewSummary` fetches live rating stats from
+ *   `GET /reviews/products/{productId}/summary` and overrides the
+ *   stale build-time values baked into the product DTO.
+ *
+ * FIX 11B — `useRelatedProducts` fetches live recommendations from
+ *   `GET /products/{productId}/recommendations` (or related endpoint)
+ *   and replaces the static `product.related_products` from SSG.
  */
 const Details = dynamic(() => import('@/components/products/details/details'));
 const BookDetails = dynamic(
@@ -36,6 +47,23 @@ const ProductPage: NextPageWithLayout<
   InferGetStaticPropsType<typeof getStaticProps>
 > = ({ product }: any) => {
   const { width } = useWindowSize();
+
+  // Live rating summary — overrides stale SSG snapshot.
+  const { summary } = useReviewSummary(product?.id);
+
+  // Derive RatingCount[] from the Kolshi breakdown map (keyed 1–5).
+  const liveRatingCount: RatingCount[] | undefined = summary?.breakdown
+    ? Object.entries(summary.breakdown).map(([rating, total]) => ({
+        rating: Number(rating),
+        total: total as number,
+      }))
+    : undefined;
+
+  // Live related products — overrides stale SSG snapshot.
+  const { products: relatedProducts } = useRelatedProducts(product?.id);
+  const displayRelated =
+    relatedProducts.length > 1 ? relatedProducts : product?.related_products;
+
   return (
     <>
       <Seo
@@ -52,9 +80,9 @@ const ProductPage: NextPageWithLayout<
               <Details product={product} />
               <AverageRatings
                 title={product?.name}
-                ratingCount={product?.rating_count}
-                totalReviews={product?.total_reviews}
-                ratings={product?.ratings}
+                ratingCount={liveRatingCount ?? product?.rating_count}
+                totalReviews={summary?.total ?? product?.total_reviews}
+                ratings={summary?.average ?? product?.ratings}
               />
             </>
           )}
@@ -64,10 +92,10 @@ const ProductPage: NextPageWithLayout<
             productType={product?.type?.slug}
           />
           {product.type?.slug !== 'books' &&
-            product?.related_products?.length > 1 && (
+            (displayRelated?.length ?? 0) > 1 && (
               <div className="p-5 lg:p-14 xl:p-16">
                 <RelatedProducts
-                  products={product.related_products}
+                  products={displayRelated}
                   currentProductId={product.id}
                   gridClassName="lg:grid-cols-4 2xl:grid-cols-5 !gap-3"
                 />

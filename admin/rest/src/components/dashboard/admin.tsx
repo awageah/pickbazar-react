@@ -20,6 +20,7 @@ import {
   useUsersCountQuery,
   usePendingWithdrawalsCountQuery,
   useNotificationStatsQuery,
+  useAnalyticsOverviewQuery,
 } from '@/data/dashboard';
 import { useOrdersQuery } from '@/data/order';
 import { useWithdrawsQuery } from '@/data/withdraw';
@@ -86,10 +87,13 @@ export default function Dashboard() {
   const { data: ordersData } = useOrdersCountQuery();
   const { data: usersData } = useUsersCountQuery();
   const { data: pendingWithdrawalsData } = usePendingWithdrawalsCountQuery();
+  const { overview } = useAnalyticsOverviewQuery();
 
   const pendingShopsCount: number = (pendingShopsData as any)?.total ?? 0;
-  const totalOrdersCount: number = (ordersData as any)?.total ?? 0;
-  const totalUsersCount: number = (usersData as any)?.total ?? 0;
+  const totalOrdersCount: number =
+    overview?.total_orders ?? (ordersData as any)?.total ?? 0;
+  const totalUsersCount: number =
+    overview?.total_customers ?? (usersData as any)?.total ?? 0;
   const pendingWithdrawalsCount: number =
     (pendingWithdrawalsData as any)?.total ?? 0;
 
@@ -125,19 +129,16 @@ export default function Dashboard() {
           subtitleTransKey="sticker-card-subtitle-revenue"
           icon={<EaringIcon className="h-8 w-8" />}
           iconBgStyle={{ backgroundColor: '#B798F5' }}
-          price={0}
-          note={t('common:text-not-available', {
-            defaultValue: 'No analytics endpoint',
-          })}
+          price={overview?.total_revenue ?? 0}
         />
         <StickerCard
           titleTransKey="sticker-card-title-total-shops"
           subtitleTransKey="sticker-card-subtitle-shops"
           icon={<BasketIcon className="h-8 w-8" />}
           iconBgStyle={{ backgroundColor: '#F5D2C1' }}
-          price={pendingShopsCount}
+          price={overview?.total_shops ?? pendingShopsCount}
           link={Routes.newShops}
-          linkText={t('common:text-pending', { defaultValue: 'pending' })}
+          linkText={`${pendingShopsCount} ${t('common:text-pending', { defaultValue: 'pending' })}`}
         />
         <StickerCard
           titleTransKey="sticker-card-title-all-user"

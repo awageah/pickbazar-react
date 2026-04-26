@@ -52,6 +52,23 @@ export const formatProductsArgs = (
     return Number.isFinite(n) ? n : undefined;
   };
 
+  // Resolve price bounds from either:
+  //   a) Separate min_price / max_price props (admin-side / direct callers)
+  //   b) A comma-separated "min,max" string from the price-filter URL param
+  //      (price-filter.tsx writes: ?price=100,2000)
+  let resolvedMin = numericPrice(min_price);
+  let resolvedMax = numericPrice(max_price);
+  if (price !== undefined) {
+    if (typeof price === 'string' && price.includes(',')) {
+      const [minPart, maxPart] = price.split(',', 2);
+      resolvedMin ??= numericPrice(minPart.trim());
+      resolvedMax ??= numericPrice(maxPart.trim());
+    } else {
+      // Single numeric value — treat as lower bound only
+      resolvedMin ??= numericPrice(price as string | number);
+    }
+  }
+
   const resolvedSortBy: KolshiProductSort =
     sortBy ? resolveSortBy(sortBy) : mapLegacySort(orderBy, sortedBy);
 
@@ -60,12 +77,8 @@ export const formatProductsArgs = (
     ...(searchTerm && { search: String(searchTerm) }),
     ...(shopId && { shopId }),
     ...(categories && { categoryId: categories }),
-    ...(numericPrice(price ?? min_price) !== undefined && {
-      minPrice: numericPrice(price ?? min_price),
-    }),
-    ...(numericPrice(max_price) !== undefined && {
-      maxPrice: numericPrice(max_price),
-    }),
+    ...(resolvedMin !== undefined && { minPrice: resolvedMin }),
+    ...(resolvedMax !== undefined && { maxPrice: resolvedMax }),
     sortBy: resolvedSortBy,
     ...rest,
   };

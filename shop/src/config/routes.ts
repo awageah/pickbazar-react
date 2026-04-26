@@ -28,8 +28,13 @@ export const Routes = {
    * list of tracking numbers as the `ids` query param.
    */
   orderReceived: '/orders/order-received',
-  /** Kolshi H.2 — public tracking page. */
-  trackOrder: '/track-order',
+  /**
+   * Kolshi H.2 — public tracking page.
+   * Route renamed from `/track-order` → `/tracking` to match the Kolshi
+   * handoff spec and backend-generated tracking links (email / SMS).
+   * All internal callers use this constant so no other files need updating.
+   */
+  trackOrder: '/tracking',
   logout: '/logout',
   products: '/products',
   product: (slug: string) => `/products/${encodeURIComponent(slug)}`,

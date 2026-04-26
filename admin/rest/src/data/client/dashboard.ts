@@ -5,6 +5,7 @@ import type {
   Shop,
   Order,
   User,
+  KolshiAdminOverview,
   KolshiShopAnalytics,
   KolshiSystemStatus,
   KolshiNotificationStats,
@@ -43,6 +44,12 @@ export const dashboardClient = {
       size: 1,
       status: 'PENDING',
     }),
+
+  // ── Platform analytics overview (super_admin) ────────────────────────────
+
+  /** GET /analytics/overview */
+  analyticsOverview: (params?: { start_date?: string; end_date?: string }) =>
+    HttpClient.get<KolshiAdminOverview>(API_ENDPOINTS.ANALYTICS_OVERVIEW, params ?? {}),
 
   // ── Shop analytics ────────────────────────────────────────────────────────
 

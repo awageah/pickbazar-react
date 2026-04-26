@@ -1332,6 +1332,16 @@ export interface KolshiShopAnalytics {
   ordersByStatus: Record<string, number>;
 }
 
+// ── Admin platform overview analytics ────────────────────────────────────────
+
+export interface KolshiAdminOverview {
+  total_revenue: number;
+  total_orders: number;
+  total_customers: number;
+  total_shops: number;
+  commission_earned: number;
+}
+
 // ── System status (J1) ───────────────────────────────────────────────────────
 
 export interface KolshiSystemStatus {
@@ -2046,6 +2056,7 @@ export interface OrderQueryOptions extends QueryOptions {
   tracking_number: string;
   refund_reason: string;
   with: string;
+  statuses?: string[];
 }
 
 export interface NotifyLogsQueryOptions extends QueryOptions {

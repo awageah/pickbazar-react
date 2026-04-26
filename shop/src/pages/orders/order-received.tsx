@@ -50,7 +50,9 @@ function OrderSummaryCard({ trackingNumber }: { trackingNumber: string }) {
             {trackingNumber}
           </p>
           {!isLoading && shopName && (
-            <p className="mt-1 text-sm text-body">{shopName}</p>
+            <p className="mt-1 text-sm text-body">
+              {t('text-sold-by', { defaultValue: 'Sold by' })}: {shopName}
+            </p>
           )}
         </div>
         <div className="shrink-0 text-right">
@@ -149,11 +151,21 @@ export default function OrderReceivedPage() {
               message={t('text-no-orders-in-url') as string}
             />
           ) : (
-            <div className="flex flex-col gap-4">
-              {ids.map((tn) => (
-                <OrderSummaryCard key={tn} trackingNumber={tn} />
-              ))}
-            </div>
+            <>
+              {ids.length > 1 && (
+                <p className="mb-6 text-center text-sm text-body-dark">
+                  {t('text-order-split-into-shipments', {
+                    count: ids.length,
+                    defaultValue: `Your order has been split into ${ids.length} shipments from ${ids.length} different shops.`,
+                  })}
+                </p>
+              )}
+              <div className="flex flex-col gap-4">
+                {ids.map((tn) => (
+                  <OrderSummaryCard key={tn} trackingNumber={tn} />
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>

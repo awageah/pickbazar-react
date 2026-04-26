@@ -151,6 +151,8 @@ export const API_ENDPOINTS = {
   SYSTEM_STATUS: 'system/status',
 
   // ── Analytics ────────────────────────────────────────────────────────────
+  /** GET /analytics/overview — super_admin platform KPIs */
+  ANALYTICS_OVERVIEW: 'analytics/overview',
   /** GET /analytics/shops/{shopId}?days=30 */
   SHOP_ANALYTICS: 'analytics/shops/{shopId}',
 

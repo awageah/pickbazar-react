@@ -86,6 +86,6 @@ const getLayout = (page: React.ReactElement) =>
     </div>
   );
 
-// OrdersPage.authenticationRequired = true;
+OrdersPage.authenticationRequired = true;
 
 OrdersPage.getLayout = getLayout;

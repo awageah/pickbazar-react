@@ -12,9 +12,31 @@ import { usePublicTracking } from '@/framework/order';
 
 export { getStaticProps } from '@/framework/general.ssr';
 
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  ORDER_PENDING: 'Order Placed',
+  ORDER_PROCESSING: 'Processing',
+  ORDER_AT_LOCAL_FACILITY: 'At Local Facility',
+  ORDER_OUT_FOR_DELIVERY: 'Out for Delivery',
+  ORDER_COMPLETED: 'Delivered',
+  ORDER_CANCELLED: 'Cancelled',
+  ORDER_FAILED: 'Failed',
+  // Legacy aliases from admin OrderStatus enum
+  ORDER_RECEIVED: 'Order Placed',
+  PROCESSING: 'Processing',
+  AT_LOCAL_FACILITY: 'At Local Facility',
+  OUT_FOR_DELIVERY: 'Out for Delivery',
+  COMPLETED: 'Delivered',
+  CANCELLED: 'Cancelled',
+};
+
+function formatOrderStatus(raw: string): string {
+  return ORDER_STATUS_LABELS[raw] ?? raw.replace(/_/g, ' ');
+}
+
 /**
  * Kolshi H.2 — Public order tracking page.
  *
+ * Route: `/tracking` (matches Kolshi handoff spec).
  * Guests (and authenticated users) can look up any order by pairing the
  * tracking number printed on their receipt with the contact information
  * used at checkout (phone or email). Backed by
@@ -136,8 +158,8 @@ export default function TrackOrderPage() {
                     {tracking.tracking_number}
                   </p>
                 </div>
-                <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold uppercase text-accent">
-                  {tracking.order_status}
+                <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">
+                  {formatOrderStatus(tracking.order_status)}
                 </span>
               </div>
 
@@ -165,7 +187,7 @@ export default function TrackOrderPage() {
                     <li key={entry.id} className="relative">
                       <span className="absolute -left-8 mt-1 flex h-3 w-3 rounded-full bg-accent" />
                       <p className="text-sm font-semibold text-heading">
-                        {entry.status}
+                        {formatOrderStatus(entry.status)}
                       </p>
                       <p className="text-xs text-body">
                         {entry.created_at

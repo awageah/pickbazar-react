@@ -6,7 +6,7 @@ import type { PaginatorInfo } from '@/types';
  *
  * Two directions need adapting:
  *   - Request:  caller supplies 1-indexed `page`; Spring expects 0-indexed `page`.
- *   - Response: Kolshi returns `{ data, total, page, per_page, last_page }`;
+ *   - Response: Kolshi returns `{ data, total, page, perPage, lastPage }`;
  *               template consumers read `PaginatorInfo<T>`.
  *
  * Keeping the caller surface 1-indexed means React-Query `getNextPageParam`
@@ -34,8 +34,10 @@ export interface KolshiPageResponse<T> {
   total: number;
   /** 1-indexed per Kolshi handoff. */
   page: number;
-  per_page: number;
-  last_page: number;
+  /** Matches the Java record field name `perPage` (camelCase, no snake_case Jackson config). */
+  perPage: number;
+  /** Matches the Java record field name `lastPage` (camelCase, no snake_case Jackson config). */
+  lastPage: number;
 }
 
 /**
@@ -74,8 +76,8 @@ export function toSpringPageParams(
  *
  * Edge cases:
  *   - `total === 0`   → `from = 0`, `to = 0`.
- *   - Short last page → `to` reflects the actual item count, not `per_page`.
- *   - `page > last_page` (caller over-ran) is passed through as-is; callers
+ *   - Short last page → `to` reflects the actual item count, not `perPage`.
+ *   - `page > lastPage` (caller over-ran) is passed through as-is; callers
  *     should clamp when necessary.
  */
 export function toPaginatorInfo<T>(
@@ -85,8 +87,8 @@ export function toPaginatorInfo<T>(
     data = [],
     total = 0,
     page = 1,
-    per_page = DEFAULT_PAGE_SIZE,
-    last_page = 1,
+    perPage: per_page = DEFAULT_PAGE_SIZE,
+    lastPage: last_page = 1,
   } = response ?? ({} as KolshiPageResponse<T>);
 
   const from = total === 0 ? 0 : (page - 1) * per_page + 1;

@@ -9,6 +9,7 @@ import { useQuery } from 'react-query';
 import { API_ENDPOINTS } from './client/api-endpoints';
 import { dashboardClient } from '@/data/client/dashboard';
 import {
+  KolshiAdminOverview,
   KolshiShopAnalytics,
   KolshiSystemStatus,
   KolshiNotificationStats,
@@ -46,6 +47,20 @@ export function usePendingWithdrawalsCountQuery() {
     dashboardClient.pendingWithdrawalsCount,
     { staleTime: 30_000 },
   );
+}
+
+// ── Admin platform overview ───────────────────────────────────────────────────
+
+export function useAnalyticsOverviewQuery(
+  params?: { start_date?: string; end_date?: string },
+  opts: any = {},
+) {
+  const { data, error, isLoading } = useQuery<KolshiAdminOverview, Error>(
+    [API_ENDPOINTS.ANALYTICS_OVERVIEW, params],
+    () => dashboardClient.analyticsOverview(params),
+    { staleTime: 5 * 60_000, retry: 1, ...opts },
+  );
+  return { overview: data ?? null, error, loading: isLoading };
 }
 
 // ── Store-owner shop analytics ────────────────────────────────────────────────
