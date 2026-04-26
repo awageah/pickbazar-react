@@ -1,6 +1,6 @@
 import { CloseIcon } from '@/components/icons/close-icon';
 import { SearchIcon } from '@/components/icons/search-icon';
-import GroupsDropdownMenu from '@/components/layouts/menu/groups-menu';
+import CategoriesNavMenu from '@/components/layouts/menu/categories-nav-menu';
 import StaticMenu from '@/components/layouts/menu/static-menu';
 import Alert from '@/components/ui/alert';
 import Button from '@/components/ui/button';
@@ -176,7 +176,7 @@ const Header = ({ layout }: { layout?: string }) => {
             ) : null} */}
 
               <div className="hidden ltr:ml-10 ltr:mr-auto rtl:mr-10 rtl:ml-auto xl:block">
-                <GroupsDropdownMenu />
+                <CategoriesNavMenu />
               </div>
             </div>
 

@@ -13,7 +13,7 @@ import Link from '@/components/ui/link';
 import MegaMenu from '@/components/ui/mega-menu';
 import ListMenu from '@/components/ui/list-menu';
 import { ArrowDownIcon } from '@/components/icons/arrow-down';
-import GroupsDropdownMenu from './menu/groups-menu';
+import CategoriesNavMenu from './menu/categories-nav-menu';
 
 const Search = dynamic(() => import('@/components/ui/search/search'));
 
@@ -82,7 +82,7 @@ const HeaderWithMegaMenu: React.FC<MenuProps> = ({ data, className }) => {
           ) : null}
 
           <div className="ltr:ml-10 rtl:mr-10 hidden lg:flex items-center shrink-0 space-x-9 rtl:space-x-reverse">
-            <GroupsDropdownMenu variant="minimal" />
+            <CategoriesNavMenu variant="minimal" />
             <CartCounterIconButton />
             {isAuthorize ? <AuthorizedMenu minimal={true} /> : <JoinButton />}
           </div>

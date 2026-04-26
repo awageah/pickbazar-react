@@ -28,7 +28,7 @@ import { useTranslation } from 'next-i18next';
 import dynamic from 'next/dynamic';
 import React, { useCallback } from 'react';
 import { useWindowSize } from 'react-use';
-import GroupsDropdownMenu from './menu/groups-menu';
+import CategoriesNavMenu from './menu/categories-nav-menu';
 import StaticMenu from './menu/static-menu';
 import { useRouter } from 'next/router';
 const CartCounterIconButton = dynamic(
@@ -205,7 +205,7 @@ const HeaderMinimal = ({ layout }: { layout: string }) => {
                 layout === 'compact' ? 'lg:inline-flex' : 'sm:inline-flex',
               )}
             >
-              <GroupsDropdownMenu variant="minimal" />
+              <CategoriesNavMenu variant="minimal" />
             </div>
 
             {isMultiLangEnable ? (

@@ -2,7 +2,7 @@ import { FilterIcon } from '@/components/icons/filter-icon';
 import { useTranslation } from 'next-i18next';
 import { useAtom } from 'jotai';
 import { drawerAtom } from '@/store/drawer-atom';
-import GroupsDropdownMenu from './menu/groups-menu';
+import CategoriesNavMenu from './menu/categories-nav-menu';
 import classNames from 'classnames';
 import { checkIsMaintenanceModeComing } from '@/lib/constants';
 import { twMerge } from 'tailwind-merge';
@@ -38,7 +38,7 @@ export default function FilterBar({
         <FilterIcon width="18" height="14" className="ltr:mr-2 rtl:ml-2" />
         {t('text-filter')}
       </button>
-      <GroupsDropdownMenu />
+      <CategoriesNavMenu />
     </div>
   );
 }

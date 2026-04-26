@@ -105,8 +105,16 @@ export const useDisApproveShopMutation = () => {
 export const useCreateShopMutation = () => {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { t } = useTranslation();
   return useMutation(shopClient.create, {
     onSuccess: (data) => {
+      toast.success(
+        t('common:text-shop-created-under-review', {
+          defaultValue:
+            'Your shop has been submitted! Our team will review it and notify you by email once approved — this usually takes 1–2 business days.',
+        }),
+        { autoClose: 6000 },
+      );
       const { permissions } = getAuthCredentials();
       if (hasAccess(adminOnly, permissions)) {
         return router.push(Routes.adminMyShops);
