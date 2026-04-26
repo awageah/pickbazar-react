@@ -1,4 +1,7 @@
 #! /bin/bash
+# NOTE: The Pickbazar mock API (api/rest, api/graphql) has been removed.
+# The Kolshi Spring Boot backend is managed separately via Docker.
+# This script now only uploads the deployment scripts to the server.
 
 echo "Enter your server username (ex: ubuntu)"
 read username
@@ -11,37 +14,18 @@ echo "${username}"
 echo "${ip_address}"
 ssh -o StrictHostKeyChecking=no -l "${username}" "${ip_address}" "sudo mkdir -p /var/www/pickbazar-react; sudo chown -R \$USER:\$USER /var/www; sudo apt install zip unzip";
 
-if [ -d "./api" ]; then
-  echo 'Build API'
-  yarn --cwd ./api/rest
-  yarn --cwd ./api/rest build
-  rm -rf ./api/rest/node_modules
-
-  yarn --cwd ./api/graphql
-  yarn --cwd ./api/graphql build
-  rm -rf ./api/graphql/node_modules
-
-  echo 'Zipping api folder'
-  zip -r ./api.zip ./api
-fi
-
 if [ -d "./deployment" ]; then
   echo 'Zipping deployment folder'
   zip -r ./deployment.zip ./deployment
 fi
 
-if [ -f "./api.zip" ] && [ -f "./deployment.zip" ]; then
-    echo 'Uploading api.zip to server...'
-    scp "./api.zip" "${username}@${ip_address}:/var/www/pickbazar-react"
-    echo 'uploaded api.zip to server'
-    ssh -o StrictHostKeyChecking=no -l "${username}" "${ip_address}" "unzip /var/www/pickbazar-react/api.zip -d /var/www/pickbazar-react";
-
+if [ -f "./deployment.zip" ]; then
     echo 'Uploading deployment.zip to server...'
     scp "./deployment.zip" "${username}@${ip_address}:/var/www/pickbazar-react"
     echo 'uploaded deployment.zip to server'
     ssh -o StrictHostKeyChecking=no -l "${username}" "${ip_address}" "unzip /var/www/pickbazar-react/deployment.zip -d /var/www/pickbazar-react";
 else
-  echo "pickbazar api and deployment zip file missing"
+  echo "deployment.zip missing — cannot upload"
 fi
 
 echo "installing google zx for further script"
