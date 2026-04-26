@@ -151,7 +151,7 @@ const Navbar = () => {
     return <Loader showText={false} />;
   }
 
-  const { options } = settings!;
+  const options = settings?.options;
 
   function handleClick() {
     openModal('SEARCH_VIEW');

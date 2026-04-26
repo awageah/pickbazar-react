@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from 'react-query';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'next-i18next';
@@ -117,12 +118,7 @@ export const useCacheStatsQuery = (opts: any = {}) => {
   return { stats: data ?? null, error, loading: isLoading };
 };
 
-/**
- * Legacy compatibility hooks referenced by older components that depended
- * on the Pixer settings context. These return minimal safe values so the
- * app does not crash while the Settings page is being fully migrated.
- * @deprecated Remove in A9 cleanup.
- */
+/** @deprecated Remove in A9 cleanup. */
 export const useUpdateSettingsMutation = () => {
   const queryClient = useQueryClient();
   return useMutation(settingsClient.update as any, {
@@ -130,7 +126,55 @@ export const useUpdateSettingsMutation = () => {
   });
 };
 
+/**
+ * Fetches all platform settings from GET /api/v1/settings and maps the flat
+ * key/value rows into the legacy Settings.options shape expected by the navbar
+ * and the SettingsProvider in _app.tsx.
+ *
+ * Error is always returned as null so a transient API failure never blocks
+ * the app shell — components fall back to default values from SettingsContext.
+ */
 export const useSettingsQuery = (_opts?: any) => {
-  // Return a no-op result so callers that still use the old hook don't crash.
-  return { settings: null, error: null, loading: false };
+  const { data, isLoading } = useQuery<KolshiSettingsPage, Error>(
+    [API_ENDPOINTS.SETTINGS, 'site-options'],
+    () => settingsClient.list({ size: 100 }),
+    { staleTime: 5 * 60_000, retry: 1 },
+  );
+
+  const settings = useMemo(() => {
+    const rows: KolshiSetting[] = data?.data ?? [];
+    if (!rows.length) return null;
+
+    const kv = rows.reduce<Record<string, string>>((acc, s) => {
+      acc[s.setting_key] = s.setting_value;
+      return acc;
+    }, {});
+
+    let logo: any = null;
+    try {
+      logo = kv['logo'] ? JSON.parse(kv['logo']) : null;
+    } catch {
+      logo = null;
+    }
+
+    return {
+      id: 'kolshi-settings',
+      language: 'en',
+      options: {
+        siteName: kv['site_name'] ?? kv['siteName'] ?? 'Kolshi',
+        siteSubtitle: kv['site_subtitle'] ?? kv['siteSubtitle'] ?? '',
+        currency: kv['currency'] ?? 'EGP',
+        logo,
+        isUnderMaintenance:
+          kv['is_under_maintenance'] === 'true' ||
+          kv['isUnderMaintenance'] === 'true',
+        maintenance: {
+          start: kv['maintenance_start'] ?? kv['maintenanceStart'] ?? null,
+          until: kv['maintenance_until'] ?? kv['maintenanceUntil'] ?? null,
+        },
+      },
+    };
+  }, [data]);
+
+  return { settings, error: null, loading: isLoading };
 };
